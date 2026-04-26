@@ -14,6 +14,19 @@ repository's standards.
 
 Follow these steps to create a Pull Request:
 
+0.  **Task Branch Discovery**: Before creating or switching branches, check if a
+    relevant branch already exists for the current task.
+    - Extract keywords from the task description (e.g., "add user auth" →
+      `user-auth`).
+    - Search for existing branches:
+      ```bash
+      git branch -r | grep -i "<task-keyword>"
+      ```
+    - **Decision**:
+      - **If a relevant branch exists**: Ask the user if they want to checkout
+        and continue working on it.
+      - **If no relevant branch found**: Proceed to Step 1.
+
 1.  **Branch Management**: **CRITICAL:** Ensure you are NOT working on the
     `main` branch.
     - Run `git branch --show-current`.
@@ -22,6 +35,8 @@ Follow these steps to create a Pull Request:
       ```bash
       git checkout -b <new-branch-name>
       ```
+    - Branch naming convention: `<type>/<short-description>` (e.g.,
+      `feat/add-user-auth`, `fix/resolve-crash`).
 
 2.  **Commit Changes**: Verify that all intended changes are committed.
     - Run `git status` to check for unstaged or uncommitted changes.
@@ -69,7 +84,24 @@ Follow these steps to create a Pull Request:
     git push -u origin HEAD
     ```
 
-8.  **Create PR**: Use the `gh` CLI to create the PR. To avoid shell escaping
+8.  **PR Idempotency Check**: Before creating a PR, verify if one already exists
+    for the current branch.
+    - Check for existing open PRs:
+      ```bash
+      gh pr list --head <current-branch> --state open --json number,title,url
+      ```
+    - **Decision Matrix**:
+      - **Case A (No open PR found)**: Proceed to create a new PR (Step 9).
+      - **Case B (Open PR exists)**: DO NOT create a new PR. Instead:
+        1. Inform the user that a PR already exists with its URL.
+        2. Ask if they want to add a comment to the existing PR:
+           ```bash
+           gh pr view <PR_NUMBER> --json url
+           gh pr comment <PR_NUMBER> --body "Updated with latest changes."
+           ```
+        3. Skip Step 9.
+
+9.  **Create PR**: Use the `gh` CLI to create the PR. To avoid shell escaping
     issues with multi-line Markdown, write the description to a temporary file
     first.
     ```bash
