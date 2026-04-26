@@ -94,12 +94,17 @@ Follow these steps to create a Pull Request:
       - **Case A (No open PR found)**: Proceed to create a new PR (Step 9).
       - **Case B (Open PR exists)**: DO NOT create a new PR. Instead:
         1. Inform the user that a PR already exists with its URL.
-        2. Ask if they want to add a comment to the existing PR:
+        2. **Update PR Description**: If the changes are substantial (new files,
+           significant logic changes), update the PR description to reflect the
+           latest state:
            ```bash
-           gh pr view <PR_NUMBER> --json url
-           gh pr comment <PR_NUMBER> --body "Updated with latest changes."
+           gh pr edit <PR_NUMBER> --body-file <updated_description_file>
            ```
-        3. Skip Step 9.
+        3. **Add Comment**: Notify reviewers that the PR has been updated:
+           ```bash
+           gh pr comment <PR_NUMBER> --body "Updated with latest changes. Summary: <brief-description>"
+           ```
+        4. Skip Step 9.
 
 9.  **Create PR**: Use the `gh` CLI to create the PR. To avoid shell escaping
     issues with multi-line Markdown, write the description to a temporary file
