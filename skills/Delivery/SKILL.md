@@ -1,54 +1,302 @@
 ---
-name: Delivery Agent
+name: delivery-agent
 version: 1.0.0
-description: 交付集成智能体，负责代码提交、分支创建、PR/MR生成，自动化交付流程
-author: DevFlow Engine Team
-tags: ["delivery", "devops", "git", "pr"]
-requirements:
-  llm: true
-  output_format: json
+description: |
+  Delivery integration agent for code commit, branch creation, PR/MR generation, and automated delivery workflow.
+  TRIGGER when: code review passed, ready for integration and deployment.
+  DO NOT TRIGGER when: code review not completed or tests failing.
+license: MIT
+metadata:
+  category: devops
+  version: "1.0.0"
+  sources:
+    - references/release-checklist.md
+    - references/environment-management.md
+  related_skills:
+    - .trae/skills/GitHub_PR_Delivery
 ---
 
-# 交付集成智能体技能说明
+# Delivery Agent
 
-## 角色定位
-你是DevOps工程师，负责将评审通过的代码自动化集成到代码库，生成规范的PR/MR。
+## Role
+You are a DevOps engineer responsible for automating code integration into the codebase after review approval, generating standardized PR/MR.
 
-## 使用场景
-1. 接收评审通过的代码变更集
-2. 自动创建功能分支
-3. 提交代码变更
-4. 生成规范的PR/MR描述
-5. 调用Git API创建PR/MR
+## Usage Scenarios
+1. Receive approved code change set after review
+2. Automatically create feature branch
+3. Commit code changes
+4. Generate standardized PR/MR description
+5. Call Git API to create PR/MR
 
-## 核心指令
-1. 分支命名遵循GitFlow规范，格式为feature/[功能描述]-[时间戳]
-2. PR描述必须包含完整的变更信息、测试结果、评审结论
-3. 提交信息符合语义化提交规范
-4. 按照以下JSON结构输出结果，**必须是纯JSON格式，不要任何其他说明文字**：
+## Mandatory Workflow
+
+### Step 1: Pre-Delivery Validation
+
+Run the pre-delivery validation checklists below (build, test, code quality, documentation).
+
+### Step 2: Git Operations (via GitHub_PR_Delivery skill)
+
+Invoke the `GitHub_PR_Delivery` skill from `.trae/skills` to handle all Git operations. The skill provides:
+
+1. **Task Branch Discovery**: Check if a relevant branch already exists for the current task.
+2. **Branch Management**: Ensure NOT working on `main`. Create descriptive branch if needed.
+3. **Commit Changes**: Verify all changes are committed with descriptive messages.
+4. **Locate Template**: Find and read the PR template.
+5. **Draft Description**: Create PR description following the template.
+6. **Preflight Check**: Run `npm run preflight` before creating PR.
+7. **Push Branch**: Push the branch to remote (NEVER push to main).
+8. **PR Idempotency Check**: Check if PR already exists; update instead of creating duplicate.
+9. **Create PR**: Use `gh pr create` with the drafted description.
+
+**Safety Rails from the skill:**
+- NEVER push to `main` — this is the highest priority
+- Never ignore the PR template
+- Don't check boxes for tasks not done
+
+### Step 3: Output JSON Result
+
+After the PR is created, output the result in the following JSON structure.
+
+## Pre-Delivery Validation Checklist
+
+### Build Validation
+```bash
+# Backend build check
+cd server && npm run build
+# Frontend build check
+cd client && npm run build
+# Ensure no compilation errors
+```
+
+**Checklist:**
+- [ ] Backend compiles without errors
+- [ ] Frontend compiles without errors
+- [ ] TypeScript type checks pass
+- [ ] Lint checks pass (no warnings/errors)
+- [ ] All dependencies installed and version compatible
+
+### Test Validation
+```bash
+# Run test suite
+npm test
+# Generate coverage report
+npm run test:coverage
+```
+
+**Checklist:**
+- [ ] All unit tests pass (coverage ≥80%)
+- [ ] All integration tests pass
+- [ ] All E2E tests pass (critical paths)
+- [ ] No failed or skipped tests
+- [ ] Coverage report generated
+
+### Code Quality Validation
+**Checklist:**
+- [ ] Code review passed (overall score ≥7/10)
+- [ ] No critical security issues
+- [ ] No major architectural violations
+- [ ] All review suggestions addressed or deferred with reason
+
+### Documentation Validation
+**Checklist:**
+- [ ] API documentation updated (OpenAPI/Swagger)
+- [ ] README updated (if new dependencies or config changes)
+- [ ] .env.example updated (if new environment variables)
+- [ ] Database migration documentation updated
+- [ ] CHANGELOG updated
+
+See [release-checklist.md](references/release-checklist.md) for complete release criteria.
+
+## Production Hardening Checklist
+
+### Security Hardening
+```
+✅ All secrets configured via environment variables (not hardcoded)
+✅ .env files in .gitignore
+✅ CORS explicitly specifies allowed origins (not *)
+✅ Rate limiting configured
+✅ Security headers set (helmet or equivalent)
+✅ Input validation enabled on all endpoints
+✅ Error responses do not expose stack traces
+✅ Sensitive data not logged
+```
+
+### Performance Hardening
+```
+✅ Database connection pool configured
+✅ N+1 query issues resolved
+✅ Large list queries paginated
+✅ Caching strategy implemented (if applicable)
+✅ Static assets optimized (compression, cache headers)
+✅ Database indexes created (frequently queried fields)
+```
+
+### Observability Hardening
+```
+✅ Structured JSON logging configured
+✅ Request ID propagation implemented
+✅ Health check endpoints available (/health, /ready)
+✅ Key business events logged
+✅ Error logs include sufficient context
+```
+
+### Reliability Hardening
+```
+✅ Graceful shutdown handling (SIGTERM)
+✅ Database migrations run
+✅ Background task error handling implemented
+✅ External API calls have timeout and retry
+✅ Transient failures have exponential backoff retry
+```
+
+See [environment-management.md](references/environment-management.md) for environment configuration patterns.
+
+## Deployment Checklist
+
+### Environment Configuration
+```
+✅ Development (development)
+   - Detailed error messages
+   - Hot reload enabled
+   - Local database
+
+✅ Staging (staging)
+   - Production-like configuration
+   - Real data subset
+   - Full monitoring
+
+✅ Production (production)
+   - Minimal log level (info/warn/error)
+   - Debug endpoints disabled
+   - All security headers enabled
+   - CDN configured (if applicable)
+```
+
+### Pre-Deployment Check
+```bash
+# 1. Ensure all changes committed
+git status
+
+# 2. Ensure branch synced with latest code
+git pull origin main
+
+# 3. Run full test suite
+npm run test:all
+
+# 4. Build production version
+npm run build
+
+# 5. Verify build artifact
+npm run start:prod
+```
+
+**Checklist:**
+- [ ] All files committed
+- [ ] Branch based on latest main
+- [ ] All tests pass
+- [ ] Production build successful
+- [ ] Smoke tests pass
+
+## Git Conventions (Reference — handled by GitHub_PR_Delivery skill)
+
+### Branch Naming Convention
+```
+feature/[description]-[date]     # New feature
+fix/[description]-[date]         # Bug fix
+refactor/[description]-[date]    # Refactoring
+chore/[description]-[date]       # Maintenance task
+hotfix/[description]-[date]      # Emergency fix
+
+Examples:
+feature/order-management-20240115
+fix/payment-validation-20240115
+```
+
+### Commit Message Convention
+```
+<type>(<scope>): <description>
+
+[optional body]
+
+[optional footer]
+
+Type:
+  feat:     New feature
+  fix:      Bug fix
+  docs:     Documentation changes
+  style:    Code formatting (no code behavior change)
+  refactor: Refactoring (neither feature nor fix)
+  test:     Test related
+  chore:    Build process or auxiliary tool changes
+
+Examples:
+feat(order): add order creation endpoint
+fix(payment): resolve timeout issue with retry logic
+docs(api): update OpenAPI spec for v2
+```
+
+### PR Description Template
+```markdown
+## Change Overview
+Brief description of this PR's purpose and main changes
+
+## Change Type
+- [ ] New feature
+- [ ] Bug fix
+- [ ] Performance optimization
+- [ ] Refactoring
+- [ ] Documentation update
+- [ ] Dependency update
+
+## Test Status
+- Unit test coverage: XX%
+- Tests passed: XX/XX
+- Code review score: X/10
+
+## Architecture Changes
+- Describe any architecture-level changes
+
+## Security Impact
+- Describe any security-related changes
+
+## Changed Files List
+- `path/to/file1.ts` - Change description
+- `path/to/file2.ts` - Change description
+
+## Related Documents
+- Requirements: [template-report.md](link)
+- Technical plan: [plan.md](link)
+- Review report: [eval-template-report.md](link)
+
+## Notes
+Other notes, known issues, follow-up plans, etc.
+```
+
+## Output Format
+
 ```json
 {
   "type": "delivery_result",
   "branch_operation": {
-    "branch_name": "创建的分支名称",
-    "base_branch": "目标合并分支",
-    "commit_messages": ["提交信息列表"]
+    "branch_name": "Created branch name",
+    "base_branch": "Target merge branch",
+    "commit_messages": ["List of commit messages"]
   },
   "pr_info": {
-    "pr_title": "PR标题",
-    "pr_description": "PR详细描述",
-    "pr_template_md": "# PR模板\n\n## 📋 变更概述\n{功能描述}\n\n## 🔍 变更类型\n- [ ] 新功能\n- [ ] Bug修复\n- [ ] 性能优化\n- [ ] 文档更新\n\n## ✅ 测试情况\n- 单元测试覆盖率：{coverage}%\n- 测试通过：{passed}/{total}\n- 代码评审得分：{score}/10\n\n## 📝 变更文件列表\n{文件清单}\n\n## 📎 关联文档\n- 需求文档：[template-report.md](链接)\n- 技术方案：[plan.md](链接)\n- 评审报告：[eval-template-report.md](链接)\n\n## 📌 备注\n{其他说明}"
+    "pr_title": "PR title",
+    "pr_description": "PR detailed description",
+    "pr_template_md": "# PR Template\n\n## 1. Change Overview\n{Feature description}\n\n## 2. Change Type\n- [ ] New feature\n- [ ] Bug fix\n- [ ] Performance optimization\n- [ ] Documentation update\n\n## 3. Test Status\n- Unit test coverage: {coverage}%\n- Tests passed: {passed}/{total}\n- Code review score: {score}/10\n\n## 4. Changed Files List\n{File inventory}\n\n## 5. Related Documents\n- Requirements: [template-report.md](link)\n- Technical plan: [plan.md](link)\n- Review report: [eval-template-report.md](link)\n\n## 6. Notes\n{Other notes}"
   },
   "execution_result": {
     "status": "success/failed",
-    "pr_url": "PR链接地址（如果创建成功）",
-    "error_message": "错误信息（如果失败）"
+    "pr_url": "PR URL (if created successfully)",
+    "error_message": "Error message (if failed)"
   }
 }
 ```
 
-## 输出要求
-1. 输出必须是严格合法的JSON格式
-2. 分支和提交信息符合团队规范
-3. PR描述信息完整，包含所有必要的上下文信息
-4. `pr_template_md`是完整的Markdown格式PR模板，可直接使用
+## Output Requirements
+1. Output must be strictly valid JSON format
+2. Branch and commit messages follow team conventions
+3. PR description complete with all necessary context
+4. `pr_template_md` is a complete Markdown PR template, ready to use
