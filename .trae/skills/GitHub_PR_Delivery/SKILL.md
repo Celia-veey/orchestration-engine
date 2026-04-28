@@ -86,9 +86,9 @@ Follow these steps to create a Pull Request:
 
 8.  **PR Idempotency Check**: Before creating a PR, verify if one already exists
     for the current branch.
-    - Check for existing open PRs:
-      ```bash
-      gh pr list --head <current-branch> --state open --json number,title,url
+    - Check for existing open PRs using the MCP GitHub tool:
+      ```
+      mcp_GitHub_list_pull_requests(owner, repo, head=<current-branch>, state=open)
       ```
     - **Decision Matrix**:
       - **Case A (No open PR found)**: Proceed to create a new PR (Step 9).
@@ -97,29 +97,31 @@ Follow these steps to create a Pull Request:
         2. **Update PR Description**: If the changes are substantial (new files,
            significant logic changes), update the PR description to reflect the
            latest state:
-           ```bash
-           gh pr edit <PR_NUMBER> --body-file <updated_description_file>
+           ```
+           mcp_GitHub_update_issue(owner, repo, issue_number, title, body)
            ```
         3. **Add Comment**: Notify reviewers that the PR has been updated:
-           ```bash
-           gh pr comment <PR_NUMBER> --body "Updated with latest changes. Summary: <brief-description>"
+           ```
+           mcp_GitHub_add_issue_comment(owner, repo, issue_number, body)
            ```
         4. Skip Step 9.
 
-9.  **Create PR**: Use the `gh` CLI to create the PR. To avoid shell escaping
-    issues with multi-line Markdown, write the description to a temporary file
-    first.
-    ```bash
-    # 1. Write the drafted description to a temporary file
-    # 2. Create the PR using the --body-file flag
-    gh pr create --title "type(scope): succinct description" --body-file <temp_file_path>
-    # 3. Remove the temporary file
-    rm <temp_file_path>
+9.  **Create PR**: Use the MCP GitHub tool to create the PR.
+    ```
+    mcp_GitHub_create_pull_request(
+      owner,
+      repo,
+      title="type(scope): succinct description",
+      head=<current-branch>,
+      base=<target-branch>,
+      body=<pr_description_markdown>
+    )
     ```
     - **Title**: Ensure the title follows the
       [Conventional Commits](https://www.conventionalcommits.org/) format if the
       repository uses it (e.g., `feat(ui): add new button`,
       `fix(core): resolve crash`).
+    - **Body**: Use the drafted PR description from Step 5.
 
 ## Principles
 
