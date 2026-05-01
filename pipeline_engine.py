@@ -7,6 +7,7 @@ from enum import Enum
 from typing import Dict, Any, Optional, List
 from pathlib import Path
 from llm_client import LLMClient
+from reference_tools import read_reference_doc
 
 class PipelineState(Enum):
     """流水线状态枚举"""
@@ -164,7 +165,7 @@ class PipelineEngine:
         print("="*80)
         
         # 加载PM技能
-        pm_system_prompt = self.skill_manager.get_skill_prompt("PM Agent")
+        pm_system_prompt = self.skill_manager.get_skill_prompt("pm-agent")
         
         # 初始化对话历史
         messages = [
@@ -334,7 +335,7 @@ class PipelineEngine:
                 print(json.dumps(pm_response, ensure_ascii=False, indent=2))
                 
                 # 生成template-report.md
-                template_report = pm_response.get("plan_md", "# 需求文档生成失败")
+                template_report = pm_response.get("template_report_md", "# 需求文档生成失败")
                 report_file = self.output_dir / "template-report.md"
                 report_file.write_text(template_report, encoding="utf-8")
                 print(f"\n✅ 结构化需求文档已生成: {report_file.resolve()}")
@@ -353,34 +354,108 @@ class PipelineEngine:
                 messages.append({"role": "assistant", "content": json.dumps(pm_response, ensure_ascii=False)})
                 messages.append({"role": "user", "content": "返回格式错误，请按照要求返回clarification或solution类型的JSON"})
     
-    # ==================== 阶段2：方案设计 ====================
+    # ==================== 阶段2：方案设计（多智能体协作） ====================
     def run_architecture_design(self) -> bool:
-        """阶段2：架构设计 - Architect智能体生成技术方案"""
+        """阶段2：架构设计 - 多智能体协作（API Designer + DB Architect + Auth Specialist）"""
         self.set_state(PipelineState.ARCHITECTURE_DESIGN)
         print("\n" + "="*80)
-        print("🏗️  【阶段2/6】技术方案设计 (Architect智能体)")
+        print("🏗️  【阶段2/6】技术方案设计 (多智能体协作)")
         print("="*80)
         
-        # 加载Architect技能
-        architect_prompt = self.skill_manager.get_skill_prompt("Architect Agent")
-        
-        # 读取现有代码库上下文（简化版，可扩展）
-        codebase_context = "当前代码库架构："
-        # TODO：后续可扩展代码库扫描功能
-        
-        messages = [
-            {"role": "system", "content": architect_prompt},
-            {"role": "user", "content": f"需求文档：\n{self.context['template_report_content']}\n\n代码库上下文：\n{codebase_context}"}
+        tools = [
+            {
+                "type": "function",
+                "function": {
+                    "name": "read_reference_doc",
+                    "description": "读取架构设计规范文档，按需获取特定主题的设计规范",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "topic": {
+                                "type": "string",
+                                "enum": ["api-design", "db-schema", "auth-flow", "tech-selection", "environment-management", "testing-strategy", "django-best-practices", "release-checklist"],
+                                "description": "规范文档主题"
+                            }
+                        },
+                        "required": ["topic"]
+                    }
+                }
+            }
         ]
         
-        print("🔄 正在调用Architect智能体设计技术方案...")
-        architect_result = self.llm_client.chat_completion_json(messages, temperature=0.2, max_tokens=12000)
+        # Step 1: API Designer 设计 API
+        print("\n📡 步骤1/3: API Designer 正在设计 API 规范...")
+        api_designer_prompt = self.skill_manager.get_skill_prompt("architect-api-designer")
+        api_messages = [
+            {"role": "system", "content": api_designer_prompt},
+            {"role": "user", "content": f"需求文档：\n{self.context['template_report_content']}"}
+        ]
+        api_design_result = self.llm_client.chat_completion_json(
+            api_messages, temperature=0.2, max_tokens=8000,
+            tools=tools, tool_functions={"read_reference_doc": read_reference_doc}
+        )
+        print(f"✅ API 设计完成: {len(api_design_result.get('api_endpoints', []))} 个端点")
+        
+        # Step 2: DB Architect 设计数据库
+        print("\n🗄️ 步骤2/3: DB Architect 正在设计数据库架构...")
+        db_architect_prompt = self.skill_manager.get_skill_prompt("architect-db-architect")
+        db_messages = [
+            {"role": "system", "content": db_architect_prompt},
+            {"role": "user", "content": f"需求文档：\n{self.context['template_report_content']}\n\nAPI 设计：\n{json.dumps(api_design_result, ensure_ascii=False)}"}
+        ]
+        db_design_result = self.llm_client.chat_completion_json(
+            db_messages, temperature=0.2, max_tokens=8000,
+            tools=tools, tool_functions={"read_reference_doc": read_reference_doc}
+        )
+        print(f"✅ 数据库设计完成: {len(db_design_result.get('tables', []))} 个表")
+        
+        # Step 3: Auth Specialist 设计认证授权
+        print("\n🔐 步骤3/3: Auth Specialist 正在设计认证授权方案...")
+        auth_specialist_prompt = self.skill_manager.get_skill_prompt("architect-auth-specialist")
+        auth_messages = [
+            {"role": "system", "content": auth_specialist_prompt},
+            {"role": "user", "content": f"需求文档：\n{self.context['template_report_content']}\n\nAPI 设计：\n{json.dumps(api_design_result, ensure_ascii=False)}"}
+        ]
+        auth_design_result = self.llm_client.chat_completion_json(
+            auth_messages, temperature=0.2, max_tokens=8000,
+            tools=tools, tool_functions={"read_reference_doc": read_reference_doc}
+        )
+        print(f"✅ 认证授权设计完成")
+        
+        # Step 4: 主 Architect 整合所有子智能体输出
+        print("\n🔗 正在整合所有子智能体输出...")
+        architect_prompt = self.skill_manager.get_skill_prompt("architect-agent")
+        codebase_context = "当前代码库架构："
+        
+        integration_messages = [
+            {"role": "system", "content": architect_prompt},
+            {"role": "user", "content": f"""需求文档：
+{self.context['template_report_content']}
+
+代码库上下文：
+{codebase_context}
+
+API 设计方案：
+{json.dumps(api_design_result, ensure_ascii=False)}
+
+数据库设计方案：
+{json.dumps(db_design_result, ensure_ascii=False)}
+
+认证授权方案：
+{json.dumps(auth_design_result, ensure_ascii=False)}
+
+请整合以上所有子智能体的输出，生成完整的技术方案。"""}
+        ]
+        
+        architect_result = self.llm_client.chat_completion_json(
+            integration_messages, temperature=0.2, max_tokens=12000,
+            tools=tools, tool_functions={"read_reference_doc": read_reference_doc}
+        )
         
         print("\n📋 技术方案设计完成：")
         print(f"✅ 变更文件数: {len(architect_result.get('file_change_list', []))}")
         print(f"✅ API设计数: {len(architect_result.get('api_design', []))}")
         
-        # 保存plan.md
         plan_md = architect_result.get("plan_md", "# 技术方案生成失败")
         plan_file = self.output_dir / "plan.md"
         plan_file.write_text(plan_md, encoding="utf-8")
@@ -393,8 +468,10 @@ class PipelineEngine:
             print("...\n(更多内容请查看plan.md文件)")
         print("-"*60)
         
-        # 保存到上下文
         self.context['architect_result'] = architect_result
+        self.context['api_design_result'] = api_design_result
+        self.context['db_design_result'] = db_design_result
+        self.context['auth_design_result'] = auth_design_result
         self.context['plan_md_path'] = str(plan_file.resolve())
         self.context['plan_md_content'] = plan_md
         
@@ -431,32 +508,108 @@ class PipelineEngine:
             else:
                 print("⚠️ 无效输入，请输入A/R/V/O")
     
-    # ==================== 阶段3：代码生成 ====================
+    # ==================== 阶段3：代码生成（多智能体协作） ====================
     def run_code_generation(self) -> bool:
-        """阶段3：代码生成 - Coder智能体严格按照方案生成代码"""
+        """阶段3：代码生成 - 多智能体协作（Backend + Frontend + Database）"""
         self.set_state(PipelineState.CODE_GENERATION)
         print("\n" + "="*80)
-        print("💻 【阶段3/6】代码生成 (Coder智能体)")
+        print("💻 【阶段3/6】代码生成 (多智能体协作)")
         print("="*80)
         
-        # 加载Coder技能
-        coder_prompt = self.skill_manager.get_skill_prompt("Coder Agent")
-        
-        messages = [
-            {"role": "system", "content": coder_prompt},
-            {"role": "user", "content": f"PM结构化方案：\n{json.dumps(self.context['pm_result'], ensure_ascii=False)}\n\n技术方案plan.md：\n{self.context['plan_md_content']}"}
+        tools = [
+            {
+                "type": "function",
+                "function": {
+                    "name": "read_reference_doc",
+                    "description": "读取编码规范文档，按需获取特定主题的编码规范",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "topic": {
+                                "type": "string",
+                                "enum": ["api-design", "db-schema", "auth-flow", "tech-selection", "environment-management", "testing-strategy", "django-best-practices", "release-checklist"],
+                                "description": "规范文档主题"
+                            }
+                        },
+                        "required": ["topic"]
+                    }
+                }
+            }
         ]
         
-        print("🔄 正在调用Coder智能体生成代码...")
-        coder_result = self.llm_client.chat_completion_json(messages, temperature=0.2, max_tokens=30000)
+        # Step 1: Database Developer 实现数据库层
+        print("\n🗄️ 步骤1/3: Database Developer 正在实现数据库层...")
+        db_coder_prompt = self.skill_manager.get_skill_prompt("coder-database")
+        db_messages = [
+            {"role": "system", "content": db_coder_prompt},
+            {"role": "user", "content": f"技术方案：\n{self.context['plan_md_content']}\n\n数据库设计：\n{json.dumps(self.context.get('db_design_result', {}), ensure_ascii=False)}"}
+        ]
+        db_code_result = self.llm_client.chat_completion_json(
+            db_messages, temperature=0.2, max_tokens=12000,
+            tools=tools, tool_functions={"read_reference_doc": read_reference_doc}
+        )
+        print(f"✅ 数据库层完成: {len(db_code_result.get('migrations', []))} 个迁移, {len(db_code_result.get('models', []))} 个模型")
+        
+        # Step 2: Backend Developer 实现后端层
+        print("\n🔧 步骤2/3: Backend Developer 正在实现后端层...")
+        backend_coder_prompt = self.skill_manager.get_skill_prompt("coder-backend")
+        backend_messages = [
+            {"role": "system", "content": backend_coder_prompt},
+            {"role": "user", "content": f"技术方案：\n{self.context['plan_md_content']}\n\nAPI 设计：\n{json.dumps(self.context.get('api_design_result', {}), ensure_ascii=False)}\n\n数据库代码：\n{json.dumps(db_code_result, ensure_ascii=False)}"}
+        ]
+        backend_code_result = self.llm_client.chat_completion_json(
+            backend_messages, temperature=0.2, max_tokens=15000,
+            tools=tools, tool_functions={"read_reference_doc": read_reference_doc}
+        )
+        print(f"✅ 后端层完成: {len(backend_code_result.get('code_files', []))} 个文件")
+        
+        # Step 3: Frontend Developer 实现前端层
+        print("\n🎨 步骤3/3: Frontend Developer 正在实现前端层...")
+        frontend_coder_prompt = self.skill_manager.get_skill_prompt("coder-frontend")
+        frontend_messages = [
+            {"role": "system", "content": frontend_coder_prompt},
+            {"role": "user", "content": f"技术方案：\n{self.context['plan_md_content']}\n\nAPI 设计：\n{json.dumps(self.context.get('api_design_result', {}), ensure_ascii=False)}\n\n后端代码：\n{json.dumps(backend_code_result, ensure_ascii=False)}"}
+        ]
+        frontend_code_result = self.llm_client.chat_completion_json(
+            frontend_messages, temperature=0.2, max_tokens=15000,
+            tools=tools, tool_functions={"read_reference_doc": read_reference_doc}
+        )
+        print(f"✅ 前端层完成: {len(frontend_code_result.get('code_files', []))} 个文件")
+        
+        # Step 4: 合并所有代码
+        print("\n🔗 正在合并所有子智能体生成的代码...")
+        all_code_files = []
+        all_test_cases = []
+        
+        for code_file in db_code_result.get('code_files', []):
+            all_code_files.append(code_file)
+        for code_file in backend_code_result.get('code_files', []):
+            all_code_files.append(code_file)
+        for code_file in frontend_code_result.get('code_files', []):
+            all_code_files.append(code_file)
+        
+        for test_case in db_code_result.get('test_cases', []):
+            all_test_cases.append(test_case)
+        for test_case in backend_code_result.get('test_cases', []):
+            all_test_cases.append(test_case)
+        for test_case in frontend_code_result.get('test_cases', []):
+            all_test_cases.append(test_case)
+        
+        coder_result = {
+            'code_files': all_code_files,
+            'test_cases': all_test_cases,
+            'deployment_guide': backend_code_result.get('deployment_guide', {})
+        }
         
         print("\n📦 代码生成完成：")
-        print(f"✅ 生成代码文件数: {len(coder_result.get('code_files', []))}")
-        print(f"✅ 生成测试用例数: {len(coder_result.get('test_cases', []))}")
+        print(f"✅ 生成代码文件数: {len(all_code_files)}")
+        print(f"✅ 生成测试用例数: {len(all_test_cases)}")
         
-        # 保存到上下文
         self.context['coder_result'] = coder_result
-        self.context['code_changes'] = coder_result.get('code_files', [])
+        self.context['code_changes'] = all_code_files
+        self.context['db_code_result'] = db_code_result
+        self.context['backend_code_result'] = backend_code_result
+        self.context['frontend_code_result'] = frontend_code_result
         
         return True
     
@@ -468,8 +621,28 @@ class PipelineEngine:
         print("🧪 【阶段4/6】测试生成与执行 (QA智能体)")
         print("="*80)
         
-        # 加载QA技能
-        qa_prompt = self.skill_manager.get_skill_prompt("QA Agent")
+        tools = [
+            {
+                "type": "function",
+                "function": {
+                    "name": "read_reference_doc",
+                    "description": "读取测试规范文档",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "topic": {
+                                "type": "string",
+                                "enum": ["api-design", "db-schema", "auth-flow", "tech-selection", "environment-management", "testing-strategy", "django-best-practices", "release-checklist"],
+                                "description": "规范文档主题"
+                            }
+                        },
+                        "required": ["topic"]
+                    }
+                }
+            }
+        ]
+        
+        qa_prompt = self.skill_manager.get_skill_prompt("qa-agent")
         
         messages = [
             {"role": "system", "content": qa_prompt},
@@ -493,20 +666,20 @@ class PipelineEngine:
                 retry_count += 1
                 print(f"⚠️ 测试失败 {failed_count} 个，尝试自动修复（重试 {retry_count}/{max_retries}）")
                 
-                # 将失败信息加入上下文，让Coder修复
                 repair_messages = [
-                    {"role": "system", "content": self.skill_manager.get_skill_prompt("Coder Agent")},
+                    {"role": "system", "content": self.skill_manager.get_skill_prompt("coder-backend")},
                     {"role": "user", "content": f"技术方案：\n{self.context['plan_md_content']}\n\n当前代码：\n{json.dumps(self.context['code_changes'], ensure_ascii=False)}\n\n测试失败信息：\n{json.dumps(qa_result.get('failed_test_details', []), ensure_ascii=False)}\n\n请修复代码中的问题，只返回修复后的代码变更集。"}
                 ]
                 
-                print("🔄 正在调用Coder智能体修复代码问题...")
-                fix_result = self.llm_client.chat_completion_json(repair_messages, temperature=0.1, max_tokens=15000)
+                print("🔄 正在调用Backend Developer修复代码问题...")
+                fix_result = self.llm_client.chat_completion_json(
+                    repair_messages, temperature=0.1, max_tokens=15000,
+                    tools=tools, tool_functions={"read_reference_doc": read_reference_doc}
+                )
                 
-                # 更新代码变更集
                 self.context['code_changes'] = fix_result.get('code_files', self.context['code_changes'])
                 messages.append({"role": "user", "content": f"修复后的代码：\n{json.dumps(self.context['code_changes'], ensure_ascii=False)}"})
         
-        # 保存到上下文
         self.context['qa_result'] = qa_result
         self.context['test_cases'] = qa_result.get('test_cases', [])
         self.context['test_result'] = execution_result
@@ -523,8 +696,28 @@ class PipelineEngine:
         print("🔍 【阶段5/6】代码评审 (Reviewer智能体)")
         print("="*80)
         
-        # 加载Reviewer技能
-        reviewer_prompt = self.skill_manager.get_skill_prompt("Reviewer Agent")
+        tools = [
+            {
+                "type": "function",
+                "function": {
+                    "name": "read_reference_doc",
+                    "description": "读取代码评审规范文档",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "topic": {
+                                "type": "string",
+                                "enum": ["api-design", "db-schema", "auth-flow", "tech-selection", "environment-management", "testing-strategy", "django-best-practices", "release-checklist"],
+                                "description": "规范文档主题"
+                            }
+                        },
+                        "required": ["topic"]
+                    }
+                }
+            }
+        ]
+        
+        reviewer_prompt = self.skill_manager.get_skill_prompt("reviewer-agent")
         
         messages = [
             {"role": "system", "content": reviewer_prompt},
@@ -532,7 +725,10 @@ class PipelineEngine:
         ]
         
         print("🔄 正在调用Reviewer智能体进行代码评审...")
-        reviewer_result = self.llm_client.chat_completion_json(messages, temperature=0.3, max_tokens=12000)
+        reviewer_result = self.llm_client.chat_completion_json(
+            messages, temperature=0.3, max_tokens=12000,
+            tools=tools, tool_functions={"read_reference_doc": read_reference_doc}
+        )
         
         review_summary = reviewer_result.get('review_summary', {})
         print("\n📋 代码评审完成：")
@@ -541,13 +737,11 @@ class PipelineEngine:
         print(f"✅ 严重问题: {review_summary.get('critical_problems', 0)}")
         print(f"✅ 代码质量总分: {reviewer_result.get('code_quality_scores', {}).get('overall_score', 0)}/10")
         
-        # 生成评审报告
         eval_report = reviewer_result.get('eval_template_report', "# 代码评审报告生成失败")
         eval_file = self.output_dir / "eval-template-report.md"
         eval_file.write_text(eval_report, encoding="utf-8")
         print(f"\n✅ 代码评审报告已生成: {eval_file.resolve()}")
         
-        # 保存到上下文
         self.context['reviewer_result'] = reviewer_result
         self.context['eval_report_path'] = str(eval_file.resolve())
         self.context['eval_report_content'] = eval_report
@@ -645,8 +839,28 @@ class PipelineEngine:
         print("🚚 【阶段6/6】交付集成 (Delivery智能体)")
         print("="*80)
         
-        # 加载Delivery技能
-        delivery_prompt = self.skill_manager.get_skill_prompt("Delivery Agent")
+        tools = [
+            {
+                "type": "function",
+                "function": {
+                    "name": "read_reference_doc",
+                    "description": "读取发布清单规范文档",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "topic": {
+                                "type": "string",
+                                "enum": ["api-design", "db-schema", "auth-flow", "tech-selection", "environment-management", "testing-strategy", "django-best-practices", "release-checklist"],
+                                "description": "规范文档主题"
+                            }
+                        },
+                        "required": ["topic"]
+                    }
+                }
+            }
+        ]
+        
+        delivery_prompt = self.skill_manager.get_skill_prompt("delivery-agent")
         
         messages = [
             {"role": "system", "content": delivery_prompt},
@@ -654,15 +868,16 @@ class PipelineEngine:
         ]
         
         print("🔄 正在调用Delivery智能体生成PR...")
-        delivery_result = self.llm_client.chat_completion_json(messages, temperature=0.1, max_tokens=8000)
+        delivery_result = self.llm_client.chat_completion_json(
+            messages, temperature=0.1, max_tokens=8000,
+            tools=tools, tool_functions={"read_reference_doc": read_reference_doc}
+        )
         
-        # 生成PR模板
         pr_template = delivery_result.get('pr_info', {}).get('pr_template_md', "# PR模板生成失败")
         pr_file = self.output_dir / "pr-template.md"
         pr_file.write_text(pr_template, encoding="utf-8")
         print(f"\n✅ PR模板已生成: {pr_file.resolve()}")
         
-        # 保存到上下文
         self.context['delivery_result'] = delivery_result
         self.context['pr_template_path'] = str(pr_file.resolve())
         

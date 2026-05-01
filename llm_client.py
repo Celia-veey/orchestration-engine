@@ -1,13 +1,13 @@
 import os
 import json
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List, Callable
 import openai
 from dotenv import load_dotenv
 
 load_dotenv()
 
 class LLMClient:
-    """通用大模型API客户端，支持多种大模型提供商和JSON格式输出"""
+    """通用大模型API客户端，支持多种大模型提供商、JSON格式输出和Tool Calling"""
     
     def __init__(self, provider: str = "openai", model: Optional[str] = None):
         """
@@ -24,9 +24,11 @@ class LLMClient:
             raise ValueError(f"环境变量 {provider.upper()}_API_KEY 未设置")
         
         if provider == "openai":
+            import httpx
             self.client = openai.OpenAI(
                 api_key=self.api_key,
-                base_url=self.base_url
+                base_url=self.base_url,
+                timeout=httpx.Timeout(timeout=600.0, connect=30.0)
             )
         else:
             raise ValueError(f"不支持的提供商: {provider}")
@@ -35,18 +37,27 @@ class LLMClient:
                        messages: list[Dict[str, str]], 
                        temperature: float = 0.7,
                        max_tokens: int = 2000,
-                       response_format: Optional[str] = None) -> str:
+                       response_format: Optional[str] = None,
+                       tools: Optional[List[Dict]] = None,
+                       tool_choice: Optional[str] = None) -> str:
         """
         调用聊天补全API
         :param messages: 对话消息列表
         :param temperature: 温度参数，控制随机性
         :param max_tokens: 最大生成token数
         :param response_format: 响应格式，可选"json"
+        :param tools: 工具定义列表（Tool Calling）
+        :param tool_choice: 工具选择策略（"auto"/"required"/"none"）
         :return: 模型返回的内容
         """
         extra_params = {}
         if response_format == "json":
             extra_params["response_format"] = {"type": "json_object"}
+        
+        if tools:
+            extra_params["tools"] = tools
+            if tool_choice:
+                extra_params["tool_choice"] = tool_choice
         
         response = self.client.chat.completions.create(
             model=self.model,
@@ -58,23 +69,94 @@ class LLMClient:
         
         return response.choices[0].message.content.strip()
     
+    def chat_completion_with_tools(self,
+                                   messages: list[Dict[str, str]],
+                                   tools: List[Dict],
+                                   tool_functions: Dict[str, Callable],
+                                   temperature: float = 0.7,
+                                   max_tokens: int = 2000,
+                                   response_format: Optional[str] = None) -> str:
+        """
+        调用聊天补全API并支持Tool Calling循环
+        :param messages: 对话消息列表
+        :param tools: 工具定义列表
+        :param tool_functions: 工具名称到函数的映射
+        :param temperature: 温度参数
+        :param max_tokens: 最大生成token数
+        :param response_format: 响应格式
+        :return: 模型最终返回的内容
+        """
+        extra_params = {}
+        if response_format == "json":
+            extra_params["response_format"] = {"type": "json_object"}
+        
+        extra_params["tools"] = tools
+        extra_params["tool_choice"] = "auto"
+        
+        while True:
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=messages,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                **extra_params
+            )
+            
+            choice = response.choices[0].message
+            
+            if not choice.tool_calls:
+                return choice.content.strip() if choice.content else ""
+            
+            messages.append(choice)
+            
+            for tool_call in choice.tool_calls:
+                function_name = tool_call.function.name
+                function_args = json.loads(tool_call.function.arguments)
+                
+                if function_name in tool_functions:
+                    result = tool_functions[function_name](**function_args)
+                else:
+                    result = f"Error: Unknown function '{function_name}'"
+                
+                messages.append({
+                    "role": "tool",
+                    "tool_call_id": tool_call.id,
+                    "content": json.dumps(result, ensure_ascii=False) if isinstance(result, dict) else str(result)
+                })
+            
+            extra_params.pop("tool_choice", None)
+    
     def chat_completion_json(self,
                            messages: list[Dict[str, str]],
                            temperature: float = 0.7,
-                           max_tokens: int = 2000) -> Dict[str, Any]:
+                           max_tokens: int = 2000,
+                           tools: Optional[List[Dict]] = None,
+                           tool_functions: Optional[Dict[str, Callable]] = None) -> Dict[str, Any]:
         """
         调用聊天补全API并返回JSON格式结果
         :param messages: 对话消息列表
         :param temperature: 温度参数，控制随机性
         :param max_tokens: 最大生成token数
+        :param tools: 工具定义列表（可选）
+        :param tool_functions: 工具函数映射（可选）
         :return: 解析后的JSON对象
         """
-        content = self.chat_completion(
-            messages=messages,
-            temperature=temperature,
-            max_tokens=max_tokens,
-            response_format="json"
-        )
+        if tools and tool_functions:
+            content = self.chat_completion_with_tools(
+                messages=messages,
+                tools=tools,
+                tool_functions=tool_functions,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                response_format="json"
+            )
+        else:
+            content = self.chat_completion(
+                messages=messages,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                response_format="json"
+            )
         
         try:
             return json.loads(content)
