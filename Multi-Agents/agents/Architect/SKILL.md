@@ -56,6 +56,22 @@ Briefly explain each choice (1 sentence per decision).
 
 Then synthesize findings into the technical solution.
 
+### Step 2.5: Non-Functional Requirements Analysis
+
+Before designing the solution, evaluate non-functional requirements:
+
+| Category | Key Questions |
+|----------|---------------|
+| Scalability | Expected concurrent users? Requests per second? Data volume? |
+| Performance | API response time target (p95)? Page load time? |
+| Availability | Target uptime (99.9% / 99.95% / 99.99%)? RPO/RTO? |
+| Security | Authentication method? Authorization model? Compliance needs? |
+| Reliability | Backup frequency? Disaster recovery strategy? |
+| Maintainability | Deployment frequency? Monitoring requirements? |
+| Cost | Infrastructure budget? Operational cost constraints? |
+
+Document NFR targets in the technical solution.
+
 ### Step 3: Consult Architecture Specifications
 
 Use the `read_reference_doc` tool to retrieve relevant specifications on demand:
@@ -113,6 +129,28 @@ Controller (HTTP) → Service (Business Logic) → Repository (Data Access)
     "real_time_method": "string",
     "error_handling": "string"
   },
+  "nfr_targets": {
+    "performance": "API response time < 200ms p95",
+    "scalability": "Concurrent users: 1000",
+    "availability": "99.9% uptime",
+    "security": "JWT + RBAC",
+    "reliability": "RPO: 1hr, RTO: 4hr"
+  },
+  "architecture_diagram": "string (Mermaid diagram syntax)",
+  "adr_list": [
+    {
+      "adr_id": "ADR-001",
+      "title": "string",
+      "status": "Proposed|Accepted",
+      "context": "string",
+      "decision": "string",
+      "consequences": {
+        "positive": ["string"],
+        "negative": ["string"]
+      },
+      "alternatives": ["string"]
+    }
+  ],
   "file_change_list": [
     {
       "file_path": "string",
@@ -135,6 +173,72 @@ Controller (HTTP) → Service (Business Logic) → Repository (Data Access)
   "plan_md": "string (complete Markdown technical plan)"
 }
 ```
+
+## Architecture Decision Records (ADR)
+
+All significant architectural decisions must be documented using ADR format:
+
+### ADR Template
+
+```markdown
+# ADR-{number}: {Title}
+
+## Status
+[Proposed | Accepted | Deprecated | Superseded by ADR-XXX]
+
+## Context
+[Describe the situation and forces at play. What is the problem?
+What constraints exist? What are we trying to achieve?]
+
+## Decision
+[State the decision clearly. What are we going to do?]
+
+## Consequences
+
+### Positive
+- [Benefit 1]
+- [Benefit 2]
+
+### Negative
+- [Drawback 1]
+- [Drawback 2]
+
+## Alternatives Considered
+[What other options were evaluated and why were they rejected?]
+```
+
+### ADR Naming Convention
+
+```
+docs/
+└── adr/
+    ├── 0001-use-postgresql-database.md
+    ├── 0002-adopt-microservices.md
+    └── README.md
+```
+
+## Architecture Diagram (Mermaid)
+
+Use Mermaid syntax for architecture diagrams:
+
+```mermaid
+graph TD
+    Client["Client (Web/Mobile)"] --> Gateway["API Gateway"]
+    Gateway --> AuthSvc["Auth Service"]
+    Gateway --> OrderSvc["Order Service"]
+    OrderSvc --> DB[("Orders DB\n(PostgreSQL)")]
+    OrderSvc --> Queue["Message Queue\n(RabbitMQ)"]
+    Queue --> NotifySvc["Notification Service"]
+```
+
+### Diagram Types
+
+| Type | Mermaid Syntax | Use When |
+|------|----------------|----------|
+| Flowchart | `graph TD` | Component interactions |
+| Sequence | `sequenceDiagram` | Request/response flows |
+| State | `stateDiagram-v2` | State machines |
+| Class | `classDiagram` | Domain models |
 
 ## Rules
 

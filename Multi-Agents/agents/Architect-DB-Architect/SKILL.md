@@ -47,8 +47,38 @@ Use the `read_reference_doc` tool to retrieve database design specifications:
 5. **Timestamps**: Include `created_at` and `updated_at` on all tables
 6. **Soft Deletes**: Use `deleted_at` column instead of physical deletion
 7. **Indexing**: Index foreign keys and frequently queried columns
+8. **Query Optimization**: Design for efficient query execution plans
 
-### Step 3: Schema Design Patterns
+### Step 3: Index Strategy
+
+Design indexes based on expected query patterns:
+
+| Index Type | Use When | Example |
+|------------|----------|---------|
+| B-Tree (Default) | WHERE, JOIN, ORDER BY | `CREATE INDEX idx_orders_user_id ON orders(user_id)` |
+| Multi-Column | Multiple filter columns | `CREATE INDEX idx_orders_status_created ON orders(status, created_at)` |
+| Partial Index | Subset of data | `CREATE INDEX idx_orders_active ON orders(user_id) WHERE status = 'pending'` |
+| Covering Index | Index-only scans | `CREATE INDEX idx_users_email_covering ON users(email) INCLUDE (name)` |
+| Unique Index | Enforce uniqueness | `CREATE UNIQUE INDEX idx_users_email ON users(email)` |
+
+#### Column Order Rules
+
+1. **Equality before range**: `(status, created_at)` for `WHERE status = ? AND created_at > ?`
+2. **High selectivity first**: `(user_id, status)` when user_id is more selective
+3. **Match query patterns**: Design indexes for actual queries, not theoretical ones
+
+### Step 4: Query Optimization Guidelines
+
+| Anti-Pattern | Solution |
+|-------------|----------|
+| N+1 queries | Use JOINs or batch loading |
+| `SELECT *` | Select only needed columns |
+| `LIKE '%term%'` | Use full-text search or trigram indexes |
+| `WHERE DATE(column) = ?` | Use range: `column >= ? AND column < ?` |
+| Subqueries in WHERE | Use JOINs or CTEs |
+| Large OFFSET pagination | Use cursor-based pagination |
+
+### Step 5: Schema Design Patterns
 
 | Pattern | Description |
 |---------|-------------|
@@ -113,4 +143,7 @@ Use the `read_reference_doc` tool to retrieve database design specifications:
 3. Output must be strictly valid JSON format
 4. Define explicit relationships between tables
 5. Include indexing strategy for performance
-6. Use `read_reference_doc` tool to consult specifications when needed
+6. Index all foreign keys and frequently queried columns
+7. Use partial indexes for filtered subsets
+8. Design for cursor-based pagination on large datasets
+9. Use `read_reference_doc` tool to consult specifications when needed

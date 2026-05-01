@@ -78,22 +78,31 @@ class LLMClient:
                                    response_format: Optional[str] = None) -> str:
         """
         调用聊天补全API并支持Tool Calling循环
+        支持两种模式：
+        1. 原生Tool Calling（OpenAI兼容API）
+        2. JSON格式模拟Tool Calling（模型返回JSON表示要调用工具）
+        
+        注意：当使用 tools 时，不使用 response_format=json_object，
+        因为两者同时使用会导致模型混淆，把工具调用作为JSON文本返回。
+        最终输出时再要求JSON格式。
+        
         :param messages: 对话消息列表
         :param tools: 工具定义列表
         :param tool_functions: 工具名称到函数的映射
         :param temperature: 温度参数
         :param max_tokens: 最大生成token数
-        :param response_format: 响应格式
+        :param response_format: 响应格式（仅在最终输出时生效）
         :return: 模型最终返回的内容
         """
         extra_params = {}
-        if response_format == "json":
-            extra_params["response_format"] = {"type": "json_object"}
-        
         extra_params["tools"] = tools
         extra_params["tool_choice"] = "auto"
         
-        while True:
+        max_iterations = 10
+        iteration = 0
+        
+        while iteration < max_iterations:
+            iteration += 1
             response = self.client.chat.completions.create(
                 model=self.model,
                 messages=messages,
@@ -104,27 +113,86 @@ class LLMClient:
             
             choice = response.choices[0].message
             
-            if not choice.tool_calls:
-                return choice.content.strip() if choice.content else ""
-            
-            messages.append(choice)
-            
-            for tool_call in choice.tool_calls:
-                function_name = tool_call.function.name
-                function_args = json.loads(tool_call.function.arguments)
+            # 模式1：原生Tool Calling
+            if choice.tool_calls:
+                messages.append(choice)
                 
-                if function_name in tool_functions:
-                    result = tool_functions[function_name](**function_args)
-                else:
-                    result = f"Error: Unknown function '{function_name}'"
+                for tool_call in choice.tool_calls:
+                    function_name = tool_call.function.name
+                    function_args = json.loads(tool_call.function.arguments)
+                    
+                    if function_name in tool_functions:
+                        result = tool_functions[function_name](**function_args)
+                    else:
+                        result = f"Error: Unknown function '{function_name}'"
+                    
+                    messages.append({
+                        "role": "tool",
+                        "tool_call_id": tool_call.id,
+                        "content": json.dumps(result, ensure_ascii=False) if isinstance(result, dict) else str(result)
+                    })
                 
-                messages.append({
-                    "role": "tool",
-                    "tool_call_id": tool_call.id,
-                    "content": json.dumps(result, ensure_ascii=False) if isinstance(result, dict) else str(result)
-                })
+                extra_params.pop("tool_choice", None)
+                continue
             
-            extra_params.pop("tool_choice", None)
+            # 模式2：JSON格式模拟Tool Calling
+            if choice.content:
+                content = choice.content.strip()
+                try:
+                    parsed = json.loads(content)
+                    
+                    # 格式1: {"type": "tool_call", "tool_name": "...", "arguments": {...}}
+                    if parsed.get("type") == "tool_call" and "tool_name" in parsed:
+                        function_name = parsed["tool_name"]
+                        function_args = parsed.get("arguments", {})
+                    
+                    # 格式2: {"tool_calls": [{"name": "...", "arguments": {...}}]}
+                    elif "tool_calls" in parsed and isinstance(parsed["tool_calls"], list) and len(parsed["tool_calls"]) > 0:
+                        tc = parsed["tool_calls"][0]
+                        function_name = tc.get("name", "")
+                        function_args = tc.get("arguments", {})
+                    
+                    else:
+                        # 不是工具调用，是最终输出
+                        # 如果要求JSON格式，尝试解析
+                        if response_format == "json":
+                            return content
+                        return content
+                    
+                    # 执行工具调用
+                    if function_name in tool_functions:
+                        result = tool_functions[function_name](**function_args)
+                    else:
+                        result = f"Error: Unknown function '{function_name}'"
+                    
+                    # 将工具调用和结果添加到消息历史
+                    messages.append({"role": "assistant", "content": content})
+                    messages.append({
+                        "role": "user",
+                        "content": f"Tool '{function_name}' executed successfully. Result:\n{json.dumps(result, ensure_ascii=False) if isinstance(result, dict) else str(result)}\n\nNow continue with your original task using this information."
+                    })
+                    
+                    # 工具调用后，移除tools，让模型直接输出最终结果
+                    extra_params.pop("tool_choice", None)
+                    extra_params.pop("tools", None)
+                    
+                    # 如果要求JSON格式，现在加上
+                    if response_format == "json":
+                        extra_params["response_format"] = {"type": "json_object"}
+                        # 添加提示
+                        messages.append({
+                            "role": "user",
+                            "content": "Please output your final result in valid JSON format."
+                        })
+                    
+                    continue
+                except json.JSONDecodeError:
+                    pass
+                
+                # 不是JSON，直接返回
+                return content
+        
+        return ""
     
     def chat_completion_json(self,
                            messages: list[Dict[str, str]],

@@ -32,10 +32,10 @@ class PipelineState(Enum):
 class SkillManager:
     """渐进式技能管理器：按需加载技能，支持插件式扩展"""
     
-    def __init__(self, skills_dir: str = "skills"):
+    def __init__(self, skills_dir: str = "Multi-Agents/agents"):
         """
         初始化技能管理器，只构建轻量索引，不加载任何技能内容
-        :param skills_dir: 技能配置根目录
+        :param skills_dir: 智能体配置根目录
         """
         self.skills_dir = Path(skills_dir)
         self.skill_index: Dict[str, Dict[str, Any]] = {}  # 技能元数据索引
@@ -121,10 +121,10 @@ class SkillManager:
 class PipelineEngine:
     """AI驱动的需求交付流程引擎核心编排器 - 6阶段状态机版本"""
     
-    def __init__(self, skills_dir: str = "skills", codebase_dir: str = ".", output_dir: str = "output"):
+    def __init__(self, skills_dir: str = "agents", codebase_dir: str = ".", output_dir: str = "output"):
         """
         初始化流水线引擎
-        :param skills_dir: 智能体技能配置目录
+        :param skills_dir: 智能体配置目录
         :param codebase_dir: 目标代码库目录
         :param output_dir: 生成产物统一输出目录
         """
@@ -362,74 +362,79 @@ class PipelineEngine:
         print("🏗️  【阶段2/6】技术方案设计 (多智能体协作)")
         print("="*80)
         
-        tools = [
-            {
-                "type": "function",
-                "function": {
-                    "name": "read_reference_doc",
-                    "description": "读取架构设计规范文档，按需获取特定主题的设计规范",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "topic": {
-                                "type": "string",
-                                "enum": ["api-design", "db-schema", "auth-flow", "tech-selection", "environment-management", "testing-strategy", "django-best-practices", "release-checklist"],
-                                "description": "规范文档主题"
-                            }
-                        },
-                        "required": ["topic"]
+        try:
+            tools = [
+                {
+                    "type": "function",
+                    "function": {
+                        "name": "read_reference_doc",
+                        "description": "读取架构设计规范文档，按需获取特定主题的设计规范",
+                        "parameters": {
+                            "type": "object",
+                            "properties": {
+                                "topic": {
+                                    "type": "string",
+                                    "enum": ["api-design", "db-schema", "auth-flow", "tech-selection", "environment-management", "testing-strategy", "django-best-practices", "release-checklist", "ears-requirements", "three-layer-architecture", "adr-template", "nfr-checklist", "git-conventions", "code-reviewer", "github-pr-delivery", "frontend-design", "improve-codebase-architecture"],
+                                    "description": "规范文档主题或 Skill 名称"
+                                },
+                                "section": {
+                                    "type": "string",
+                                    "description": "可选的章节名称，只返回该章节内容（如 'RESTful API Rules', 'Database Tables', 'JWT Configuration'）"
+                                }
+                            },
+                            "required": ["topic"]
+                        }
                     }
                 }
-            }
-        ]
-        
-        # Step 1: API Designer 设计 API
-        print("\n📡 步骤1/3: API Designer 正在设计 API 规范...")
-        api_designer_prompt = self.skill_manager.get_skill_prompt("architect-api-designer")
-        api_messages = [
-            {"role": "system", "content": api_designer_prompt},
-            {"role": "user", "content": f"需求文档：\n{self.context['template_report_content']}"}
-        ]
-        api_design_result = self.llm_client.chat_completion_json(
-            api_messages, temperature=0.2, max_tokens=8000,
-            tools=tools, tool_functions={"read_reference_doc": read_reference_doc}
-        )
-        print(f"✅ API 设计完成: {len(api_design_result.get('api_endpoints', []))} 个端点")
-        
-        # Step 2: DB Architect 设计数据库
-        print("\n🗄️ 步骤2/3: DB Architect 正在设计数据库架构...")
-        db_architect_prompt = self.skill_manager.get_skill_prompt("architect-db-architect")
-        db_messages = [
-            {"role": "system", "content": db_architect_prompt},
-            {"role": "user", "content": f"需求文档：\n{self.context['template_report_content']}\n\nAPI 设计：\n{json.dumps(api_design_result, ensure_ascii=False)}"}
-        ]
-        db_design_result = self.llm_client.chat_completion_json(
-            db_messages, temperature=0.2, max_tokens=8000,
-            tools=tools, tool_functions={"read_reference_doc": read_reference_doc}
-        )
-        print(f"✅ 数据库设计完成: {len(db_design_result.get('tables', []))} 个表")
-        
-        # Step 3: Auth Specialist 设计认证授权
-        print("\n🔐 步骤3/3: Auth Specialist 正在设计认证授权方案...")
-        auth_specialist_prompt = self.skill_manager.get_skill_prompt("architect-auth-specialist")
-        auth_messages = [
-            {"role": "system", "content": auth_specialist_prompt},
-            {"role": "user", "content": f"需求文档：\n{self.context['template_report_content']}\n\nAPI 设计：\n{json.dumps(api_design_result, ensure_ascii=False)}"}
-        ]
-        auth_design_result = self.llm_client.chat_completion_json(
-            auth_messages, temperature=0.2, max_tokens=8000,
-            tools=tools, tool_functions={"read_reference_doc": read_reference_doc}
-        )
-        print(f"✅ 认证授权设计完成")
-        
-        # Step 4: 主 Architect 整合所有子智能体输出
-        print("\n🔗 正在整合所有子智能体输出...")
-        architect_prompt = self.skill_manager.get_skill_prompt("architect-agent")
-        codebase_context = "当前代码库架构："
-        
-        integration_messages = [
-            {"role": "system", "content": architect_prompt},
-            {"role": "user", "content": f"""需求文档：
+            ]
+            
+            # Step 1: API Designer 设计 API
+            print("\n📡 步骤1/3: API Designer 正在设计 API 规范...")
+            api_designer_prompt = self.skill_manager.get_skill_prompt("architect-api-designer")
+            api_messages = [
+                {"role": "system", "content": api_designer_prompt},
+                {"role": "user", "content": f"需求文档：\n{self.context['template_report_content']}"}
+            ]
+            api_design_result = self.llm_client.chat_completion_json(
+                api_messages, temperature=0.2, max_tokens=8000,
+                tools=tools, tool_functions={"read_reference_doc": read_reference_doc}
+            )
+            print(f"✅ API 设计完成: {len(api_design_result.get('api_endpoints', []))} 个端点")
+            
+            # Step 2: DB Architect 设计数据库
+            print("\n🗄️ 步骤2/3: DB Architect 正在设计数据库架构...")
+            db_architect_prompt = self.skill_manager.get_skill_prompt("architect-db-architect")
+            db_messages = [
+                {"role": "system", "content": db_architect_prompt},
+                {"role": "user", "content": f"需求文档：\n{self.context['template_report_content']}\n\nAPI 设计：\n{json.dumps(api_design_result, ensure_ascii=False)}"}
+            ]
+            db_design_result = self.llm_client.chat_completion_json(
+                db_messages, temperature=0.2, max_tokens=8000,
+                tools=tools, tool_functions={"read_reference_doc": read_reference_doc}
+            )
+            print(f"✅ 数据库设计完成: {len(db_design_result.get('tables', []))} 个表")
+            
+            # Step 3: Auth Specialist 设计认证授权
+            print("\n🔐 步骤3/3: Auth Specialist 正在设计认证授权方案...")
+            auth_specialist_prompt = self.skill_manager.get_skill_prompt("architect-auth-specialist")
+            auth_messages = [
+                {"role": "system", "content": auth_specialist_prompt},
+                {"role": "user", "content": f"需求文档：\n{self.context['template_report_content']}\n\nAPI 设计：\n{json.dumps(api_design_result, ensure_ascii=False)}"}
+            ]
+            auth_design_result = self.llm_client.chat_completion_json(
+                auth_messages, temperature=0.2, max_tokens=8000,
+                tools=tools, tool_functions={"read_reference_doc": read_reference_doc}
+            )
+            print(f"✅ 认证授权设计完成")
+            
+            # Step 4: 主 Architect 整合所有子智能体输出
+            print("\n🔗 正在整合所有子智能体输出...")
+            architect_prompt = self.skill_manager.get_skill_prompt("architect-agent")
+            codebase_context = "当前代码库架构："
+            
+            integration_messages = [
+                {"role": "system", "content": architect_prompt},
+                {"role": "user", "content": f"""需求文档：
 {self.context['template_report_content']}
 
 代码库上下文：
@@ -445,37 +450,66 @@ API 设计方案：
 {json.dumps(auth_design_result, ensure_ascii=False)}
 
 请整合以上所有子智能体的输出，生成完整的技术方案。"""}
-        ]
-        
-        architect_result = self.llm_client.chat_completion_json(
-            integration_messages, temperature=0.2, max_tokens=12000,
-            tools=tools, tool_functions={"read_reference_doc": read_reference_doc}
-        )
-        
-        print("\n📋 技术方案设计完成：")
-        print(f"✅ 变更文件数: {len(architect_result.get('file_change_list', []))}")
-        print(f"✅ API设计数: {len(architect_result.get('api_design', []))}")
-        
-        plan_md = architect_result.get("plan_md", "# 技术方案生成失败")
-        plan_file = self.output_dir / "plan.md"
-        plan_file.write_text(plan_md, encoding="utf-8")
-        print(f"\n✅ 技术方案文档已生成: {plan_file.resolve()}")
-        print("📄 方案预览：")
-        print("-"*60)
-        preview_lines = plan_md.split('\n')[:20]
-        print('\n'.join(preview_lines))
-        if len(preview_lines) < len(plan_md.split('\n')):
-            print("...\n(更多内容请查看plan.md文件)")
-        print("-"*60)
-        
-        self.context['architect_result'] = architect_result
-        self.context['api_design_result'] = api_design_result
-        self.context['db_design_result'] = db_design_result
-        self.context['auth_design_result'] = auth_design_result
-        self.context['plan_md_path'] = str(plan_file.resolve())
-        self.context['plan_md_content'] = plan_md
-        
-        return True
+            ]
+            
+            architect_result = self.llm_client.chat_completion_json(
+                integration_messages, temperature=0.2, max_tokens=12000,
+                tools=tools, tool_functions={"read_reference_doc": read_reference_doc}
+            )
+            
+            print("\n📋 技术方案设计完成：")
+            print(f"✅ 变更文件数: {len(architect_result.get('file_change_list', []))}")
+            print(f"✅ API设计数: {len(architect_result.get('api_design', []))}")
+            
+            # 检查关键字段是否存在
+            if "plan_md" not in architect_result:
+                print(f"\n⚠️ 警告: LLM 返回的 JSON 缺少 'plan_md' 字段")
+                print(f"📋 返回的 JSON keys: {list(architect_result.keys())}")
+                plan_md = "# 技术方案生成失败 - 缺少 plan_md 字段"
+            else:
+                plan_md = architect_result.get("plan_md", "# 技术方案生成失败")
+            
+            plan_file = self.output_dir / "plan.md"
+            plan_file.write_text(plan_md, encoding="utf-8")
+            print(f"\n✅ 技术方案文档已生成: {plan_file.resolve()}")
+            print("📄 方案预览：")
+            print("-"*60)
+            preview_lines = plan_md.split('\n')[:20]
+            print('\n'.join(preview_lines))
+            if len(preview_lines) < len(plan_md.split('\n')):
+                print("...\n(更多内容请查看plan.md文件)")
+            print("-"*60)
+            
+            self.context['architect_result'] = architect_result
+            self.context['api_design_result'] = api_design_result
+            self.context['db_design_result'] = db_design_result
+            self.context['auth_design_result'] = auth_design_result
+            self.context['plan_md_path'] = str(plan_file.resolve())
+            self.context['plan_md_content'] = plan_md
+            
+            return True
+            
+        except Exception as e:
+            print(f"\n❌ 架构设计阶段异常: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            
+            # 生成错误报告
+            error_md = f"""# 技术方案生成失败
+
+## 错误信息
+```
+{str(e)}
+```
+
+## 堆栈跟踪
+```
+{traceback.format_exc()}
+```
+"""
+            plan_file = self.output_dir / "plan.md"
+            plan_file.write_text(error_md, encoding="utf-8")
+            return False
     
     def human_approval_1(self) -> bool:
         """人工检查点1：技术方案审批"""
@@ -527,8 +561,12 @@ API 设计方案：
                         "properties": {
                             "topic": {
                                 "type": "string",
-                                "enum": ["api-design", "db-schema", "auth-flow", "tech-selection", "environment-management", "testing-strategy", "django-best-practices", "release-checklist"],
-                                "description": "规范文档主题"
+                                "enum": ["api-design", "db-schema", "auth-flow", "tech-selection", "environment-management", "testing-strategy", "django-best-practices", "release-checklist", "ears-requirements", "three-layer-architecture", "adr-template", "nfr-checklist", "git-conventions", "code-reviewer", "github-pr-delivery", "frontend-design", "improve-codebase-architecture"],
+                                "description": "规范文档主题或 Skill 名称"
+                            },
+                            "section": {
+                                "type": "string",
+                                "description": "可选的章节名称，只返回该章节内容"
                             }
                         },
                         "required": ["topic"]
@@ -632,8 +670,8 @@ API 设计方案：
                         "properties": {
                             "topic": {
                                 "type": "string",
-                                "enum": ["api-design", "db-schema", "auth-flow", "tech-selection", "environment-management", "testing-strategy", "django-best-practices", "release-checklist"],
-                                "description": "规范文档主题"
+                                "enum": ["api-design", "db-schema", "auth-flow", "tech-selection", "environment-management", "testing-strategy", "django-best-practices", "release-checklist", "ears-requirements", "three-layer-architecture", "adr-template", "nfr-checklist", "git-conventions", "code-reviewer", "github-pr-delivery", "frontend-design", "improve-codebase-architecture"],
+                                "description": "规范文档主题或 Skill 名称"
                             }
                         },
                         "required": ["topic"]
@@ -707,8 +745,8 @@ API 设计方案：
                         "properties": {
                             "topic": {
                                 "type": "string",
-                                "enum": ["api-design", "db-schema", "auth-flow", "tech-selection", "environment-management", "testing-strategy", "django-best-practices", "release-checklist"],
-                                "description": "规范文档主题"
+                                "enum": ["api-design", "db-schema", "auth-flow", "tech-selection", "environment-management", "testing-strategy", "django-best-practices", "release-checklist", "ears-requirements", "three-layer-architecture", "adr-template", "nfr-checklist", "git-conventions", "code-reviewer", "github-pr-delivery", "frontend-design", "improve-codebase-architecture"],
+                                "description": "规范文档主题或 Skill 名称"
                             }
                         },
                         "required": ["topic"]
@@ -850,8 +888,8 @@ API 设计方案：
                         "properties": {
                             "topic": {
                                 "type": "string",
-                                "enum": ["api-design", "db-schema", "auth-flow", "tech-selection", "environment-management", "testing-strategy", "django-best-practices", "release-checklist"],
-                                "description": "规范文档主题"
+                                "enum": ["api-design", "db-schema", "auth-flow", "tech-selection", "environment-management", "testing-strategy", "django-best-practices", "release-checklist", "ears-requirements", "three-layer-architecture", "adr-template", "nfr-checklist", "git-conventions", "code-reviewer", "github-pr-delivery", "frontend-design", "improve-codebase-architecture"],
+                                "description": "规范文档主题或 Skill 名称"
                             }
                         },
                         "required": ["topic"]
