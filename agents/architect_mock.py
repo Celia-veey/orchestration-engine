@@ -1,4 +1,4 @@
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 from . import ArchitectBaseAgent
 
 class ArchitectMockAgent(ArchitectBaseAgent):
@@ -7,7 +7,8 @@ class ArchitectMockAgent(ArchitectBaseAgent):
     def run(
         self,
         requirement_doc: str,
-        codebase_context: Optional[Dict[str, Any]] = None
+        codebase_context: Optional[Dict[str, Any]] = None,
+        chat_history: Optional[List[Dict[str, str]]] = None
     ) -> Dict[str, Any]:
         return {
             "file_change_list": [
