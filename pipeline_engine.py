@@ -10,6 +10,7 @@ from pathlib import Path
 from llm_client import LLMClient
 from models import PipelineContext, PipelineStateEnum, FileChange, TestCase
 from data_extractor import extract_json_from_markdown, extract_list_from_markdown
+from file_tools import write_files
 
 # 导入Mock Agent实现
 from agents.pm_mock import PMMockAgent
@@ -534,12 +535,25 @@ class PipelineEngine:
         if coder_result is None:
             raise RuntimeError("Coder 未返回有效结果")
         
-        # Coder现在返回纯文本content
-        code_content = coder_result.get("content") or ""
+        # Coder返回JSON格式，包含code_files和test_cases
+        code_files = coder_result.get("code_files", [])
+        test_cases = coder_result.get("test_cases", [])
         
-        # 从Markdown中提取代码文件和测试用例
-        code_files = extract_list_from_markdown(code_content, "code_files") or extract_json_from_markdown(code_content, "code_files") or []
-        test_cases = extract_list_from_markdown(code_content, "test_cases") or extract_json_from_markdown(code_content, "test_cases") or []
+        # 直接写入文件
+        if code_files:
+            write_results = write_files(code_files, str(self.codebase_dir))
+            success_count = sum(1 for r in write_results if r.get("status") == "success")
+            print(f"\n✅ 已写入 {success_count}/{len(code_files)} 个代码文件")
+            for result in write_results:
+                if result.get("status") == "success":
+                    print(f"  - {result['file_path']}")
+                else:
+                    print(f"  ❌ {result.get('message', '未知错误')}")
+        
+        if test_cases:
+            test_results = write_files(test_cases, str(self.codebase_dir))
+            success_count = sum(1 for r in test_results if r.get("status") == "success")
+            print(f"\n✅ 已写入 {success_count}/{len(test_cases)} 个测试文件")
         
         print("\n📦 代码生成完成：")
         print(f"✅ 生成代码文件数: {len(code_files)}")

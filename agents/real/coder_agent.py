@@ -1,12 +1,13 @@
 from typing import Dict, Any, Optional, List
 from pathlib import Path
+import re
 
 from .. import CoderBaseAgent
 from llm_client import LLMClient
 
 
 class CoderAgent(CoderBaseAgent):
-    """Coder 真实 Agent：通过 LLM 生成代码和测试用例"""
+    """Coder 真实 Agent：通过 LLM 生成代码并直接写入文件"""
 
     def __init__(self, llm_client: LLMClient, agents_dir: str = "Multi-Agents/agents"):
         self.llm = llm_client
@@ -26,6 +27,27 @@ class CoderAgent(CoderBaseAgent):
         content = skill_path.read_text(encoding="utf-8")
         prompt = re.sub(r'^---\n.*?\n---\n', '', content, flags=re.DOTALL).strip()
         return prompt
+
+    def _extract_code_files(self, content: str) -> List[Dict[str, Any]]:
+        """
+        从 Markdown 中提取代码文件
+        格式：## 文件: path/to/file.py\n```language\ncode\n```
+        """
+        files = []
+        # 匹配 ## 文件: xxx 或 ## File: xxx
+        pattern = r'##\s+(?:文件|File):\s*(.+?)\n```(\w+)?\n(.*?)```'
+        matches = re.findall(pattern, content, re.DOTALL)
+        
+        for file_path, language, code in matches:
+            file_path = file_path.strip()
+            files.append({
+                "file_path": file_path,
+                "content": code.strip(),
+                "change_type": "new",
+                "language": language or "text"
+            })
+        
+        return files
 
     # ------------------------------------------------------------------
     # 公开接口
@@ -54,9 +76,17 @@ class CoderAgent(CoderBaseAgent):
         if chat_history:
             messages.extend(chat_history)
 
-        result = self.llm.chat_completion_text(
+        # 使用纯文本输出
+        content = self.llm.chat_completion_text(
             messages=messages,
             max_tokens=8192
         )
 
-        return {"type": "code_generation", "content": result}
+        # 从 Markdown 中提取代码文件
+        code_files = self._extract_code_files(content)
+
+        return {
+            "type": "code_generation",
+            "content": content,
+            "code_files": code_files
+        }

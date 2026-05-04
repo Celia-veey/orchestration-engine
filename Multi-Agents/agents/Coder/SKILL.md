@@ -114,37 +114,44 @@ Use constructor injection with interfaces. Services receive their dependencies, 
 
 ## Output Format
 
-```json
-{
-  "code_architecture": {
-    "project_structure": ["string"],
-    "design_patterns": ["string"],
-    "dependencies": ["string"]
-  },
-  "code_files": [
-    {
-      "file_path": "string",
-      "content": "string (complete file content)",
-      "language": "string"
-    }
-  ],
-  "test_cases": [
-    {
-      "test_file_path": "string",
-      "test_content": "string (complete test code)",
-      "test_type": "unit|integration|e2e"
-    }
-  ],
-  "deployment_guide": {
-    "installation_steps": ["string"],
-    "run_command": "string",
-    "verify_method": "string"
-  }
-}
+Output your code generation results in Markdown format with the following structure:
+
+```markdown
+# 代码生成结果
+
+## 代码文件
+
+## 文件: path/to/file1.py
+```python
+# Complete file content here
 ```
 
+## 文件: path/to/file2.py
+```javascript
+# Complete file content here
+```
+
+## 测试用例
+
+## 文件: tests/test_file1.py
+```python
+# Complete test code here
+```
+
+## 部署指南
+
+- **安装步骤**: ...
+- **运行命令**: ...
+- **验证方法**: ...
+```
+
+**Important**: 
+- Each code file MUST start with `## 文件: ` followed by the file path
+- Use proper Markdown code blocks with language identifier
+- Include ALL code files and test files in this format
+
 ## Output Requirements
-1. Output must be strictly valid JSON format, no Markdown markers or additional explanations
+1. Output must be in Markdown format with code blocks for each file
 2. Code must be complete and directly runnable, no syntax errors
 3. Test case coverage must be at least 80%, covering all core features
 4. Code follows best practices and coding conventions for the corresponding language
