@@ -58,6 +58,23 @@ class LLMClient:
         
         return response.choices[0].message.content.strip()
     
+    def chat_completion_text(self,
+                           messages: list[Dict[str, str]],
+                           temperature: float = 0.7,
+                           max_tokens: int = 2000) -> str:
+        """
+        调用聊天补全API并返回纯文本结果
+        :param messages: 对话消息列表
+        :param temperature: 温度参数，控制随机性
+        :param max_tokens: 最大生成token数
+        :return: 模型返回的纯文本内容
+        """
+        return self.chat_completion(
+            messages=messages,
+            temperature=temperature,
+            max_tokens=max_tokens
+        )
+    
     def chat_completion_json(self,
                            messages: list[Dict[str, str]],
                            temperature: float = 0.7,
@@ -69,14 +86,56 @@ class LLMClient:
         :param max_tokens: 最大生成token数
         :return: 解析后的JSON对象
         """
+        # 构建强制 JSON 输出指令（同时加到 system 和 user message）
+        json_instruction = """
+
+IMPORTANT OUTPUT RULES:
+1. You MUST wrap your ENTIRE response inside <json_output>...</json_output> tags
+2. DO NOT output any text, diagrams, explanations, or markdown outside these tags
+3. The content inside the tags MUST be valid JSON only
+4. Violating these rules will cause system failure"""
+        
+        modified_messages = []
+        for i, msg in enumerate(messages):
+            role = msg.get("role")
+            content = msg.get("content", "")
+            
+            if role == "system":
+                # System prompt: 追加指令
+                modified_messages.append({"role": "system", "content": content + json_instruction})
+            elif role == "user" and i == len(messages) - 1:
+                # 最后一个 user message: 也追加指令（双重约束）
+                modified_messages.append({"role": "user", "content": content + "\n\nRemember: Output ONLY valid JSON wrapped in <json_output>...</json_output> tags."})
+            else:
+                modified_messages.append(msg)
+        
         content = self.chat_completion(
-            messages=messages,
+            messages=modified_messages,
             temperature=temperature,
             max_tokens=max_tokens,
             response_format="json"
         )
         
+        # 提取 <json_output> 标签内的内容
+        import re
+        json_match = re.search(r'<json_output>\s*(.*?)\s*</json_output>', content, re.DOTALL)
+        if json_match:
+            content = json_match.group(1)
+        else:
+            # 兜底1：尝试提取 markdown 代码块
+            code_match = re.search(r'```(?:json)?\s*(.*?)\s*```', content, re.DOTALL)
+            if code_match:
+                content = code_match.group(1)
+            else:
+                # 兜底2：尝试直接查找第一个 { 到最后一个 } 之间的内容
+                brace_match = re.search(r'\{.*\}', content, re.DOTALL)
+                if brace_match:
+                    content = brace_match.group(0)
+        
         try:
-            return json.loads(content)
+            result = json.loads(content)
+            if not isinstance(result, dict):
+                raise ValueError(f"模型返回的JSON不是字典类型，而是: {type(result).__name__}\n返回内容前500字符: {content[:500]}")
+            return result
         except json.JSONDecodeError as e:
-            raise ValueError(f"模型返回的JSON格式解析失败: {str(e)}\n返回内容: {content}") from e
+            raise ValueError(f"模型返回的JSON格式解析失败: {str(e)}\n返回内容前500字符: {content[:500]}") from e

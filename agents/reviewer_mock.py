@@ -1,4 +1,4 @@
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 from . import ReviewerBaseAgent
 from models import FileChange
 
@@ -9,7 +9,8 @@ class ReviewerMockAgent(ReviewerBaseAgent):
         self,
         code_changes: List[FileChange],
         tech_plan: str,
-        test_result: Dict[str, Any]
+        test_result: Dict[str, Any],
+        chat_history: Optional[List[Dict[str, str]]] = None
     ) -> Dict[str, Any]:
         return {
             "review_summary": {

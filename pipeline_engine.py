@@ -9,6 +9,7 @@ from typing import Dict, Any, Optional, List
 from pathlib import Path
 from llm_client import LLMClient
 from models import PipelineContext, PipelineStateEnum, FileChange, TestCase
+from data_extractor import extract_json_from_markdown, extract_list_from_markdown
 
 # 导入Mock Agent实现
 from agents.pm_mock import PMMockAgent
@@ -17,6 +18,9 @@ from agents.coder_mock import CoderMockAgent
 from agents.qa_mock import QAMockAgent
 from agents.reviewer_mock import ReviewerMockAgent
 from agents.delivery_mock import DeliveryMockAgent
+
+# 导入真实Agent实现
+from agents.real import PMAgent, ArchitectAgent, CoderAgent, QAAgent, ReviewerAgent, DeliveryAgent
 
 class SkillManager:
     """渐进式技能管理器：按需加载技能，支持插件式扩展"""
@@ -110,13 +114,15 @@ class SkillManager:
 class PipelineEngine:
     """AI驱动的需求交付流程引擎核心编排器 - 6阶段状态机版本"""
     
-    def __init__(self, skills_dir: str = "skills", codebase_dir: str = ".", output_dir: str = "output", context_file: str = None):
+    def __init__(self, skills_dir: str = "skills", codebase_dir: str = ".", output_dir: str = "output", context_file: str = None, use_real_agents: bool = False, agents_dir: str = "Multi-Agents/agents"):
         """
         初始化流水线引擎
         :param skills_dir: 智能体技能配置目录
         :param codebase_dir: 目标代码库目录
         :param output_dir: 生成产物统一输出目录
         :param context_file: 可选，从已有context.json恢复流水线
+        :param use_real_agents: 是否使用真实Agent（通过LLM）
+        :param agents_dir: 真实Agent的SKILL.md目录
         """
         self.skills_dir = Path(skills_dir)
         self.codebase_dir = Path(codebase_dir)
@@ -141,13 +147,23 @@ class PipelineEngine:
         self.llm_client = LLMClient()
         self.skill_manager = SkillManager(skills_dir)
         
-        # 初始化Agent实例
-        self.pm_agent = PMMockAgent(self.skill_manager)
-        self.architect_agent = ArchitectMockAgent(self.skill_manager)
-        self.coder_agent = CoderMockAgent(self.skill_manager)
-        self.qa_agent = QAMockAgent(self.skill_manager)
-        self.reviewer_agent = ReviewerMockAgent(self.skill_manager)
-        self.delivery_agent = DeliveryMockAgent(self.skill_manager)
+        # 根据配置初始化Agent实例
+        if use_real_agents:
+            self.pm_agent = PMAgent(self.llm_client, agents_dir)
+            self.architect_agent = ArchitectAgent(self.llm_client, agents_dir)
+            self.coder_agent = CoderAgent(self.llm_client, agents_dir)
+            self.qa_agent = QAAgent(self.llm_client, agents_dir)
+            self.reviewer_agent = ReviewerAgent(self.llm_client, agents_dir)
+            self.delivery_agent = DeliveryAgent(self.llm_client, agents_dir)
+            print("🤖 使用真实 Agent（LLM 驱动）")
+        else:
+            self.pm_agent = PMMockAgent(self.skill_manager)
+            self.architect_agent = ArchitectMockAgent(self.skill_manager)
+            self.coder_agent = CoderMockAgent(self.skill_manager)
+            self.qa_agent = QAMockAgent(self.skill_manager)
+            self.reviewer_agent = ReviewerMockAgent(self.skill_manager)
+            self.delivery_agent = DeliveryMockAgent(self.skill_manager)
+            print("🎭 使用 Mock Agent（固定模板）")
         
         # 状态管理
         self.state = PipelineStateEnum.INIT
@@ -265,17 +281,46 @@ class PipelineEngine:
         self.set_state(PipelineStateEnum.REQUIREMENT_ANALYSIS)
         
         self.logger.info(f"📥 阶段输入：用户需求\n{user_requirement}\n")
-        self.logger.info("🔄 正在调用PM智能体分析需求（Mock模式）...")
-        print("🔄 正在调用PM智能体分析需求（Mock模式）...")
+        print("🔄 正在调用PM智能体分析需求...")
         
         try:
-            # 调用PM Agent
-            pm_result = self.pm_agent.run(user_requirement)
-            self.logger.info(f"📤 阶段输出：PM智能体返回结果，类型: {pm_result.get('type', 'unknown')}")
-            self.logger.debug(f"详细输出：\n{json.dumps(pm_result, ensure_ascii=False, indent=2)}\n")
-        
-            # 生成template-report.md
-            template_report = pm_result.get("plan_md", "# 需求文档生成失败")
+            chat_history = []
+            current_query = user_requirement
+            max_rounds = 3
+            
+            for round_num in range(max_rounds):
+                pm_result = self.pm_agent.run(current_query, chat_history)
+                self.logger.info(f"📤 PM返回结果，类型: {pm_result.get('type', 'unknown')}")
+                self.logger.debug(f"详细输出：\n{json.dumps(pm_result, ensure_ascii=False, indent=2)}\n")
+                
+                if pm_result.get("type") == "clarification":
+                    questions = pm_result.get("questions", [])
+                    if not questions:
+                        break
+                    
+                    print(f"\n📋 PM 需要澄清以下问题（第 {round_num + 1} 轮）：")
+                    answers = []
+                    for q in questions:
+                        options_text = "\n".join([f"  {o['value']}. {o['label']}" for o in q.get("options", [])])
+                        default = q.get("default_choice", "")
+                        print(f"\n  Q{q['id']}: {q['question']}")
+                        print(f"  选项:\n{options_text}")
+                        print(f"  影响: {q.get('impact', '')}")
+                        
+                        user_answer = input(f"  请输入答案（默认 {default}）: ").strip() or default
+                        answers.append({"question_id": q["id"], "answer": user_answer})
+                    
+                    # 把问答历史加入 chat_history
+                    chat_history.append({"role": "assistant", "content": json.dumps(pm_result, ensure_ascii=False)})
+                    answers_text = "\n".join([f"问题{a['question_id']}: {a['answer']}" for a in answers])
+                    chat_history.append({"role": "user", "content": f"我的回答：\n{answers_text}"})
+                    current_query = answers_text
+                else:
+                    # solution 类型，需求已清晰
+                    break
+            
+            # 生成template-report.md（PM现在返回纯文本content）
+            template_report = pm_result.get("content") or pm_result.get("template_report_md") or pm_result.get("plan_md", "# 需求文档生成失败")
             report_file = self.output_dir / "template-report.md"
             report_file.write_text(template_report, encoding="utf-8")
             self.logger.info(f"\n✅ 结构化需求文档已生成: {report_file.resolve()}")
@@ -291,7 +336,7 @@ class PipelineEngine:
             # 自动保存上下文
             self.context.save_to_file(self.output_dir / "context.json")
             
-            duration = self._log_stage_end("阶段1/6", True, "生成需求文档1份，功能点4个")
+            duration = self._log_stage_end("阶段1/6", True, "生成需求文档1份")
             self.logger.info(f"⏱️  阶段总耗时：{duration}秒，状态：成功")
             return True
         except Exception as e:
@@ -300,7 +345,6 @@ class PipelineEngine:
             self.logger.error(error_msg)
             self.logger.error(f"📋 错误堆栈：\n{stack_trace}\n")
             self._log_stage_end("阶段1/6", False, str(e))
-            # 保存错误上下文
             error_context = {
                 "stage": "需求分析",
                 "error": str(e),
@@ -318,23 +362,56 @@ class PipelineEngine:
         self.set_state(PipelineStateEnum.ARCHITECTURE_DESIGN)
         
         self.logger.info(f"📥 阶段输入：需求文档\n{self.context.template_report_md[:500]}...\n")
-        self.logger.info("🔄 正在调用Architect智能体设计技术方案（Mock模式）...")
-        print("🔄 正在调用Architect智能体设计技术方案（Mock模式）...")
+        print("🔄 正在调用Architect智能体设计技术方案...")
         
         try:
-            # 调用Architect Agent
-            architect_result = self.architect_agent.run(self.context.template_report_md)
-            self.logger.info(f"📤 阶段输出：技术方案，变更文件数: {len(architect_result.get('file_change_list', []))}，API设计数: {len(architect_result.get('api_design', []))}")
-            self.logger.debug(f"详细输出：\n{json.dumps(architect_result, ensure_ascii=False, indent=2)}\n")
-        
-            print("\n📋 技术方案设计完成：")
-            print(f"✅ 变更文件数: {len(architect_result.get('file_change_list', []))}")
-            print(f"✅ API设计数: {len(architect_result.get('api_design', []))}")
+            max_tool_calls = 3
+            chat_history = []
+            current_input = self.context.template_report_md
+            architect_result = None
             
-            # 保存plan.md
-            plan_md = architect_result.get("plan_md", "# 技术方案生成失败")
+            for tool_call_round in range(max_tool_calls):
+                architect_result = self.architect_agent.run(current_input, None, chat_history)
+                self.logger.info(f"📤 Architect返回结果，类型: {architect_result.get('type', 'unknown')}")
+                self.logger.debug(f"详细输出：\n{json.dumps(architect_result, ensure_ascii=False, indent=2)}\n")
+                
+                if architect_result.get("type") == "tool_call":
+                    tool_name = architect_result.get("tool")
+                    tool_args = architect_result.get("arguments", {})
+                    
+                    print(f"🔧 Architect 调用工具: {tool_name}")
+                    
+                    # 把工具调用加入历史
+                    chat_history.append({"role": "assistant", "content": json.dumps(architect_result, ensure_ascii=False)})
+                    
+                    if tool_name == "read_reference_doc":
+                        from reference_tools import read_reference_doc
+                        topic = tool_args.get("topic")
+                        ref_content = read_reference_doc(topic)
+                        chat_history.append({"role": "user", "content": f"工具 {tool_name} 返回：\n{ref_content}\n\n请根据参考文档继续生成技术方案。"})
+                    else:
+                        self.logger.warning(f"不支持的工具: {tool_name}，跳过工具调用")
+                        break
+                else:
+                    # tech_solution 类型，方案已生成
+                    break
+            
+            if architect_result is None or architect_result.get("type") != "tech_solution":
+                raise RuntimeError("Architect 未返回有效的技术方案")
+            
+            # 保存plan.md（Architect现在返回纯文本plan_md）
+            plan_md = architect_result.get("plan_md") or architect_result.get("content", "# 技术方案生成失败")
             plan_file = self.output_dir / "plan.md"
             plan_file.write_text(plan_md, encoding="utf-8")
+            
+            # 从Markdown中提取结构化数据（如果需要）
+            file_change_list = extract_list_from_markdown(plan_md, "file_change_list") or extract_json_from_markdown(plan_md, "file_change_list") or []
+            api_design = extract_list_from_markdown(plan_md, "api_design") or extract_json_from_markdown(plan_md, "api_design") or []
+            
+            print("\n📋 技术方案设计完成：")
+            print(f"✅ 变更文件数: {len(file_change_list)}")
+            print(f"✅ API设计数: {len(api_design)}")
+            
             print(f"\n✅ 技术方案文档已生成: {plan_file.resolve()}")
             print("📄 方案预览：")
             print("-"*60)
@@ -349,14 +426,14 @@ class PipelineEngine:
                 architect_result=architect_result,
                 plan_md=plan_md,
                 plan_md_path=str(plan_file.resolve()),
-                file_change_list=architect_result.get('file_change_list', []),
-                api_design=architect_result.get('api_design', [])
+                file_change_list=file_change_list,
+                api_design=api_design
             )
             
             # 自动保存上下文
             self.context.save_to_file(self.output_dir / "context.json")
             
-            duration = self._log_stage_end("阶段2/6", True, f"生成技术方案1份，变更文件{len(architect_result.get('file_change_list', []))}个，API设计{len(architect_result.get('api_design', []))}个")
+            duration = self._log_stage_end("阶段2/6", True, f"生成技术方案1份，变更文件{len(file_change_list)}个，API设计{len(api_design)}个")
             self.logger.info(f"⏱️  阶段总耗时：{duration}秒，状态：成功")
             return True
         except Exception as e:
@@ -365,7 +442,6 @@ class PipelineEngine:
             self.logger.error(error_msg)
             self.logger.error(f"📋 错误堆栈：\n{stack_trace}\n")
             self._log_stage_end("阶段2/6", False, str(e))
-            # 保存错误上下文
             error_context = {
                 "stage": "技术方案设计",
                 "error": str(e),
@@ -421,19 +497,58 @@ class PipelineEngine:
         print("💻 【阶段3/6】代码生成 (Coder智能体)")
         print("="*80)
         
-        print("🔄 正在调用Coder智能体生成代码（Mock模式）...")
+        print("🔄 正在调用Coder智能体生成代码...")
         
-        # 调用Coder Agent
-        coder_result = self.coder_agent.run(self.context.plan_md)
+        max_tool_calls = 3
+        chat_history = []
+        coder_result = None
+        
+        code_changes_data = []
+        if self.context.code_changes:
+            code_changes_data = [
+                change.model_dump() if hasattr(change, 'model_dump') else change
+                for change in self.context.code_changes
+            ]
+        
+        for tool_call_round in range(max_tool_calls):
+            coder_result = self.coder_agent.run(self.context.plan_md, chat_history=chat_history)
+            self.logger.info(f"📤 Coder返回结果，类型: {coder_result.get('type', 'unknown')}")
+            
+            if coder_result.get("type") == "tool_call":
+                tool_name = coder_result.get("tool")
+                tool_args = coder_result.get("arguments", {})
+                print(f"🔧 Coder 调用工具: {tool_name}")
+                
+                chat_history.append({"role": "assistant", "content": json.dumps(coder_result, ensure_ascii=False)})
+                
+                if tool_name == "read_reference_doc":
+                    from reference_tools import read_reference_doc
+                    topic = tool_args.get("topic")
+                    ref_content = read_reference_doc(topic)
+                    chat_history.append({"role": "user", "content": f"工具 {tool_name} 返回：\n{ref_content}\n\n请继续生成代码。"})
+                else:
+                    break
+            else:
+                break
+        
+        if coder_result is None:
+            raise RuntimeError("Coder 未返回有效结果")
+        
+        # Coder现在返回纯文本content
+        code_content = coder_result.get("content") or ""
+        
+        # 从Markdown中提取代码文件和测试用例
+        code_files = extract_list_from_markdown(code_content, "code_files") or extract_json_from_markdown(code_content, "code_files") or []
+        test_cases = extract_list_from_markdown(code_content, "test_cases") or extract_json_from_markdown(code_content, "test_cases") or []
         
         print("\n📦 代码生成完成：")
-        print(f"✅ 生成代码文件数: {len(coder_result.get('code_files', []))}")
-        print(f"✅ 生成测试用例数: {len(coder_result.get('test_cases', []))}")
+        print(f"✅ 生成代码文件数: {len(code_files)}")
+        print(f"✅ 生成测试用例数: {len(test_cases)}")
         
         # 保存到上下文
         self.context.update(
             coder_result=coder_result,
-            code_changes=[FileChange(**cf) for cf in coder_result.get('code_files', [])]
+            code_changes=[FileChange(**cf) for cf in code_files]
         )
         
         return True
@@ -446,12 +561,53 @@ class PipelineEngine:
         print("🧪 【阶段4/6】测试生成与执行 (QA智能体)")
         print("="*80)
         
-        print("🔄 正在调用QA智能体生成测试用例（Mock模式）...")
+        print("🔄 正在调用QA智能体生成测试用例...")
         
-        # 调用QA Agent
-        qa_result = self.qa_agent.run(self.context.code_changes, self.context.template_report_md)
+        max_tool_calls = 3
+        chat_history = []
+        qa_result = None
         
-        execution_result = qa_result.get('execution_result', {})
+        code_changes_data = []
+        if self.context.code_changes:
+            code_changes_data = [
+                change.model_dump() if hasattr(change, 'model_dump') else change
+                for change in self.context.code_changes
+            ]
+        
+        for tool_call_round in range(max_tool_calls):
+            qa_result = self.qa_agent.run(
+                code_changes_data,
+                self.context.template_report_md or "",
+                chat_history=chat_history
+            )
+            self.logger.info(f"📤 QA返回结果，类型: {qa_result.get('type', 'unknown')}")
+            
+            if qa_result.get("type") == "tool_call":
+                tool_name = qa_result.get("tool")
+                tool_args = qa_result.get("arguments", {})
+                print(f"🔧 QA 调用工具: {tool_name}")
+                
+                chat_history.append({"role": "assistant", "content": json.dumps(qa_result, ensure_ascii=False)})
+                
+                if tool_name == "read_reference_doc":
+                    from reference_tools import read_reference_doc
+                    topic = tool_args.get("topic")
+                    ref_content = read_reference_doc(topic)
+                    chat_history.append({"role": "user", "content": f"工具 {tool_name} 返回：\n{ref_content}\n\n请继续生成测试用例。"})
+                else:
+                    break
+            else:
+                break
+        
+        if qa_result is None:
+            raise RuntimeError("QA 未返回有效结果")
+        
+        # QA现在返回纯文本content
+        qa_content = qa_result.get("content") or ""
+        
+        # 从Markdown中提取测试用例和执行结果
+        test_cases = extract_list_from_markdown(qa_content, "test_cases") or extract_json_from_markdown(qa_content, "test_cases") or []
+        execution_result = extract_json_from_markdown(qa_content, "execution_result") or {}
         failed_count = execution_result.get('failed_tests', 0)
         
         if failed_count == 0:
@@ -460,7 +616,7 @@ class PipelineEngine:
         # 保存到上下文
         self.context.update(
             qa_result=qa_result,
-            test_cases=[TestCase(**tc) for tc in qa_result.get('test_cases', [])],
+            test_cases=[TestCase(**tc) for tc in test_cases],
             test_result=execution_result
         )
         
@@ -476,24 +632,68 @@ class PipelineEngine:
         print("🔍 【阶段5/6】代码评审 (Reviewer智能体)")
         print("="*80)
         
-        print("🔄 正在调用Reviewer智能体进行代码评审（Mock模式）...")
+        print("🔄 正在调用Reviewer智能体进行代码评审...")
         
-        # 调用Reviewer Agent
-        reviewer_result = self.reviewer_agent.run(
-            self.context.code_changes, 
-            self.context.plan_md, 
-            self.context.test_result
-        )
+        max_tool_calls = 3
+        chat_history = []
+        reviewer_result = None
         
-        review_summary = reviewer_result.get('review_summary', {})
+        code_changes_data = []
+        if self.context.code_changes:
+            code_changes_data = [
+                change.model_dump() if hasattr(change, 'model_dump') else change
+                for change in self.context.code_changes
+            ]
+        
+        test_result_data = self.context.test_result or {}
+        
+        for tool_call_round in range(max_tool_calls):
+            reviewer_result = self.reviewer_agent.run(
+                code_changes_data,
+                self.context.plan_md or "",
+                test_result_data,
+                chat_history=chat_history
+            )
+            self.logger.info(f"📤 Reviewer返回结果，类型: {reviewer_result.get('type', 'unknown')}")
+            
+            if reviewer_result.get("type") == "tool_call":
+                tool_name = reviewer_result.get("tool")
+                tool_args = reviewer_result.get("arguments", {})
+                print(f"🔧 Reviewer 调用工具: {tool_name}")
+                
+                chat_history.append({"role": "assistant", "content": json.dumps(reviewer_result, ensure_ascii=False)})
+                
+                if tool_name == "read_reference_doc":
+                    from reference_tools import read_reference_doc
+                    topic = tool_args.get("topic")
+                    ref_content = read_reference_doc(topic)
+                    chat_history.append({"role": "user", "content": f"工具 {tool_name} 返回：\n{ref_content}\n\n请继续评审。"})
+                else:
+                    break
+            else:
+                break
+        
+        if reviewer_result is None:
+            raise RuntimeError("Reviewer 未返回有效结果")
+        
+        # Reviewer现在返回纯文本content
+        reviewer_content = reviewer_result.get("content") or ""
+        
+        # 从Markdown中提取评审结果
+        review_summary = extract_json_from_markdown(reviewer_content, "review_summary") or {}
+        code_quality_scores = extract_json_from_markdown(reviewer_content, "code_quality_scores") or {}
+        problem_list = extract_list_from_markdown(reviewer_content, "problem_list") or []
+        
+        # 提取评审报告Markdown
+        eval_report = extract_json_from_markdown(reviewer_content, "eval_template_report") or reviewer_content
+        
         print("\n📋 代码评审完成：")
         print(f"✅ 整体结论: {review_summary.get('overall_status', 'unknown')}")
         print(f"✅ 总问题数: {review_summary.get('total_problems', 0)}")
         print(f"✅ 严重问题: {review_summary.get('critical_problems', 0)}")
-        print(f"✅ 代码质量总分: {reviewer_result.get('code_quality_scores', {}).get('overall_score', 0)}/10")
+        print(f"✅ 代码质量总分: {code_quality_scores.get('overall_score', 0)}/10")
         
         # 生成评审报告
-        eval_report = reviewer_result.get('eval_template_report', "# 代码评审报告生成失败")
         eval_file = self.output_dir / "eval-template-report.md"
         eval_file.write_text(eval_report, encoding="utf-8")
         print(f"\n✅ 代码评审报告已生成: {eval_file.resolve()}")
@@ -604,61 +804,74 @@ class PipelineEngine:
         print("🚚 【阶段6/6】交付集成 (Delivery智能体)")
         print("="*80)
         
-        # ------------------------------
-        # Mock实现：直接返回交付结果，跳过LLM调用和Git操作
-        # ------------------------------
-        print("🔄 正在调用Delivery智能体生成PR（Mock模式）...")
+        print("🔄 正在调用Delivery智能体生成PR...")
         
-        mock_delivery_result = {
-            "branch_operation": {
-                "branch_name": f"feature/auto-generated-{self.context.pipeline_id[:8]}",
-                "base_branch": "main",
-                "commit_message": f"feat: 自动生成代码 - {self.context.user_query[:30]}...",
-                "commit_hash": "a1b2c3d4e5f6g7h8i9j0"
-            },
-            "pr_info": {
-                "pr_title": f"自动生成：{self.context.user_query}",
-                "pr_template_md": f"""# PR Description
-## 🎯 需求
-{self.context.user_query}
-
-## 📋 变更内容
-- 🆕 新增代码文件：{len(self.context.code_changes) if self.context.code_changes else 0}个
-- 🧪 新增测试用例：{len(self.context.test_cases) if self.context.test_cases else 0}个
-- 📊 测试覆盖率：{self.context.test_result.get('total_coverage', 0) if self.context.test_result else 0}%
-- 🔍 代码质量评分：{self.context.reviewer_result.get('code_quality_scores', {}).get('overall_score', 0) if self.context.reviewer_result else 0}/10
-
-## ✅ 检查清单
-- [x] 代码符合编码规范
-- [x] 所有测试用例通过
-- [x] 代码评审通过
-- [x] 文档完整
-
-## 📝 生成说明
-本PR由DevFlow Engine自动生成，所有代码经过AI评审和测试验证。
-""",
-                "pr_url": f"https://github.com/your-org/your-repo/pull/12345",
-                "reviewers": ["engineer-a", "engineer-b"]
-            },
-            "execution_result": {
-                "status": "success",
-                "message": "PR创建成功",
-                "duration": "1.2s"
-            }
-        }
+        max_tool_calls = 3
+        chat_history = []
+        delivery_result = None
+        
+        review_score = 0
+        if self.context.reviewer_result and isinstance(self.context.reviewer_result, dict):
+            review_score = self.context.reviewer_result.get('code_quality_scores', {}).get('overall_score', 0)
+        
+        code_changes_data = []
+        if self.context.code_changes:
+            code_changes_data = [
+                change.model_dump() if hasattr(change, 'model_dump') else change
+                for change in self.context.code_changes
+            ]
+        
+        test_result_data = self.context.test_result or {}
+        
+        for tool_call_round in range(max_tool_calls):
+            delivery_result = self.delivery_agent.run(
+                code_changes_data,
+                test_result_data,
+                review_score,
+                self.context.user_query or "",
+                chat_history=chat_history
+            )
+            self.logger.info(f"📤 Delivery返回结果，类型: {delivery_result.get('type', 'unknown')}")
+            
+            if delivery_result.get("type") == "tool_call":
+                tool_name = delivery_result.get("tool")
+                tool_args = delivery_result.get("arguments", {})
+                print(f"🔧 Delivery 调用工具: {tool_name}")
+                
+                chat_history.append({"role": "assistant", "content": json.dumps(delivery_result, ensure_ascii=False)})
+                
+                if tool_name == "read_reference_doc":
+                    from reference_tools import read_reference_doc
+                    topic = tool_args.get("topic")
+                    ref_content = read_reference_doc(topic)
+                    chat_history.append({"role": "user", "content": f"工具 {tool_name} 返回：\n{ref_content}\n\n请继续生成交付内容。"})
+                else:
+                    break
+            else:
+                break
+        
+        if delivery_result is None:
+            raise RuntimeError("Delivery 未返回有效结果")
+        
+        # Delivery现在返回纯文本content
+        delivery_content = delivery_result.get("content") or ""
+        
+        # 从Markdown中提取PR信息
+        pr_template = extract_json_from_markdown(delivery_content, "pr_template_md") or delivery_content
+        branch_info = extract_json_from_markdown(delivery_content, "branch_operation") or {}
+        pr_info = extract_json_from_markdown(delivery_content, "pr_info") or {}
         
         # 生成PR模板
-        pr_template = mock_delivery_result.get('pr_info', {}).get('pr_template_md', "# PR模板生成失败")
         pr_file = self.output_dir / "pr-template.md"
         pr_file.write_text(pr_template, encoding="utf-8")
         print(f"\n✅ PR模板已生成: {pr_file.resolve()}")
         
         # 保存到上下文
         self.context.update(
-            delivery_result=mock_delivery_result,
+            delivery_result=delivery_result,
             pr_template_path=str(pr_file.resolve()),
-            branch_name=mock_delivery_result.get('branch_operation', {}).get('branch_name'),
-            pr_url=mock_delivery_result.get('pr_info', {}).get('pr_url')
+            branch_name=branch_info.get('branch_name', ''),
+            pr_url=pr_info.get('pr_url', '')
         )
         
         print("\n🎉 所有阶段执行完成！")
@@ -792,15 +1005,19 @@ class PipelineEngine:
 
 if __name__ == "__main__":
     import sys
+    import argparse
     
     print("🤖 基于AI驱动的6阶段需求交付流程引擎 (DevFlow Engine Pro)")
     print("="*80)
     
-    if len(sys.argv) > 1:
-        # 从命令行参数读取需求
-        user_requirement = " ".join(sys.argv[1:])
+    parser = argparse.ArgumentParser(description="DevFlow Engine CLI")
+    parser.add_argument("requirement", nargs="?", help="需求描述")
+    parser.add_argument("--real", action="store_true", help="使用真实Agent（LLM驱动），默认使用Mock")
+    args = parser.parse_args()
+    
+    if args.requirement:
+        user_requirement = args.requirement
     else:
-        # 交互式输入需求
         print("请输入您的需求：")
         user_requirement = input("> ").strip()
     
@@ -808,7 +1025,7 @@ if __name__ == "__main__":
         print("⚠️ 需求不能为空")
         sys.exit(1)
     
-    engine = PipelineEngine()
+    engine = PipelineEngine(use_real_agents=args.real)
     success = engine.run(user_requirement)
     
     sys.exit(0 if success else 1)
