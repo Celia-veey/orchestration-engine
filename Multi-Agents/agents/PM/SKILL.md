@@ -60,83 +60,80 @@ When requirements are clear enough, output a complete structured requirement doc
 ## Output Format
 
 ### When clarification is needed:
-```json
-{
-  "type": "clarification",
-  "questions": [
-    {
-      "id": 1,
-      "question": "Specific question description",
-      "question_type": "single_choice",
-      "options": [
-        {"value": "A", "label": "Option A description"},
-        {"value": "B", "label": "Option B description"},
-        {"value": "C", "label": "Option C description"},
-        {"value": "D", "label": "Other, needs user input"}
-      ],
-      "impact": "This information directly affects [tech selection / scope / timeline / security strategy]. Inaccuracy will cause misalignment in development.",
-      "default_choice": "B"
-    }
-  ]
-}
+
+Output a Markdown document with questions for the user:
+
+```markdown
+# 需求澄清问题
+
+## 问题 1: [问题标题]
+- **问题**: [具体问题描述]
+- **选项**:
+  - A. [选项 A]
+  - B. [选项 B]
+  - C. [选项 C]
+  - D. 其他，请补充：___
+- **默认选择**: B
+- **影响**: [此信息将如何影响项目]
 ```
 
 ### When requirements are clear:
-```json
-{
-  "type": "solution",
-  "requirement_analysis": {
-    "background": "Requirement background description",
-    "target": "Requirement goal",
-    "user_groups": ["Target user group list"],
-    "tech_stack": {
-      "backend": "Backend tech stack",
-      "frontend": "Frontend tech stack",
-      "database": "Database type",
-      "api_type": "API integration method",
-      "real_time": "Real-time solution",
-      "auth": "Authentication method"
-    }
-  },
-  "function_design": [
-    {
-      "module_name": "Module name",
-      "description": "Module functionality description",
-      "priority": "high/medium/low",
-      "ears_requirements": [
-        "When <trigger>, the system shall <response>.",
-        "While <state>, when <trigger>, the system shall <response>.",
-        "Where <feature enabled>, the system shall <response>."
-      ],
-      "acceptance_criteria": [
-        {
-          "id": "AC-001",
-          "scenario": "Happy path scenario",
-          "given": "Precondition/context",
-          "when": "Action taken",
-          "then": "Expected result"
-        },
-        {
-          "id": "AC-002",
-          "scenario": "Error case scenario",
-          "given": "Invalid state/input",
-          "when": "Action taken",
-          "then": "Error message/graceful handling"
-        }
-      ]
-    }
-  ],
-  "technical_suggestion": {
-    "architecture": "Architecture recommendation",
-    "tech_stack": ["Recommended tech stack"],
-    "risk_assessment": "Risk assessment and mitigation"
-  },
-  "estimate": {
-    "development_cycle": "Estimated development cycle",
-    "manpower_required": "Required manpower"
-  },
-  "template_report_md": "# Requirement Analysis Report\n\n## 1. Requirement Overview\n{Detailed requirement description}\n\n## 2. Target Users\n{User group analysis}\n\n## 3. Core Features\n{List all core features}\n\n## 4. Functional Requirements (EARS Format)\n\n### Module: [Module Name]\n\n| ID | Requirement | Type |\n|----|-------------|------|\n| FR-001 | When <trigger>, the system shall <response> | Event |\n| FR-002 | While <state>, when <trigger>, the system shall <response> | Conditional |\n| FR-003 | Where <feature>, the system shall <response> | Optional |\n\n**EARS Pattern Types:**\n- **Ubiquitous**: The system shall [action]\n- **Event-Driven**: When [trigger], the system shall [action]\n- **State-Driven**: While [state], the system shall [action]\n- **Conditional**: While [state], when [trigger], the system shall [action]\n- **Optional**: Where [feature enabled], the system shall [action]\n\n## 5. Acceptance Criteria (Given-When-Then)\n\n### AC-001: [Happy Path Scenario]\nGiven [context/precondition]\nWhen [action taken]\nThen [expected result]\n\n### AC-002: [Error Case Scenario]\nGiven [invalid state/input]\nWhen [action taken]\nThen [error message/graceful handling]\n\n### AC-003: [Edge Case Scenario]\nGiven [boundary condition]\nWhen [action taken]\nThen [expected graceful handling]\n\n## 6. Technical Recommendation\n{Tech stack and architecture suggestions}\n\n## 7. Development Plan\n{Timeline and milestones}"
-}
+
+Output a complete Markdown document containing the requirement analysis report:
+
+```markdown
+# 需求分析报告
+
+## 1. 需求概述
+{需求背景描述}
+
+## 2. 目标用户
+{目标用户群体分析}
+
+## 3. 核心功能
+{列出所有核心功能}
+
+## 4. 技术栈
+- **后端**: {后端技术栈}
+- **前端**: {前端技术栈}
+- **数据库**: {数据库类型}
+- **API**: {API 集成方式}
+- **实时通信**: {实时通信方案}
+- **认证**: {认证方式}
+
+## 5. 功能需求 (EARS 格式)
+
+### 模块: [模块名称]
+
+| ID | 需求 | 类型 |
+|----|------|------|
+| FR-001 | When <trigger>, the system shall <response> | Event |
+| FR-002 | While <state>, when <trigger>, the system shall <response> | Conditional |
+
+**EARS 模式类型:**
+- **Ubiquitous**: The system shall [action]
+- **Event-Driven**: When [trigger], the system shall [action]
+- **State-Driven**: While [state], the system shall [action]
+- **Conditional**: While [state], when [trigger], the system shall [action]
+- **Optional**: Where [feature enabled], the system shall [action]
+
+## 6. 验收标准 (Given-When-Then)
+
+### AC-001: [场景名称]
+Given [前置条件]
+When [执行操作]
+Then [预期结果]
+
+### AC-002: [错误场景]
+Given [无效状态/输入]
+When [执行操作]
+Then [错误信息/优雅处理]
+
+## 7. 技术建议
+{技术栈和架构建议}
+
+## 8. 开发计划
+{时间线和里程碑}
 ```
 
 ## EARS Requirements Syntax
@@ -196,9 +193,8 @@ Good acceptance criteria follow INVEST:
 1. Always evaluate whether requirements are clear enough first. If anything is uncertain, output `clarification` type questions
 2. Never ask more than 5 questions at once. Prioritize the most critical information
 3. Only output `solution` type complete document after requirements are fully clear
-4. `template_report_md` must be a complete Markdown document, ready to save as `template-report.md`
-5. All output must be strictly valid JSON format, no additional explanatory text
-6. Must cover all 6 requirement dimensions (tech stack, service type, database, integration, real-time, auth)
-7. All functional requirements must use EARS format with unique IDs
-8. All acceptance criteria must use Given-When-Then format and cover happy path, error cases, and edge cases
-9. Each module must have at least 1 EARS requirement and 2 acceptance criteria
+4. Output must be in Markdown format, ready to save as a report file
+5. Must cover all 6 requirement dimensions (tech stack, service type, database, integration, real-time, auth)
+6. All functional requirements must use EARS format with unique IDs
+7. All acceptance criteria must use Given-When-Then format and cover happy path, error cases, and edge cases
+8. Each module must have at least 1 EARS requirement and 2 acceptance criteria

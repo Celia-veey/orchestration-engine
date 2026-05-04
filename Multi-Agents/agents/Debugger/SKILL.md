@@ -103,32 +103,32 @@ git bisect reset
 
 ## Output Format
 
-```json
-{
-  "type": "debug_report",
-  "issue_summary": {
-    "error_message": "string",
-    "stack_trace": "string",
-    "reproduction_steps": ["string"],
-    "frequency": "always|intermittent|rare"
-  },
-  "root_cause": {
-    "description": "string",
-    "file_path": "string",
-    "line_number": 0,
-    "evidence": "string (logs, test results, or stack trace)"
-  },
-  "fix": {
-    "description": "string",
-    "code_change": "string (diff or patch)",
-    "verification": "string (how fix was verified)"
-  },
-  "prevention": {
-    "regression_test": "string (test code to prevent recurrence)",
-    "safeguards": ["string"],
-    "documentation_update": "string (if docs need updating)"
-  }
-}
+Output a complete Markdown debug report:
+
+```markdown
+# 调试报告
+
+## 1. 问题摘要
+- **错误信息**: ...
+- **堆栈跟踪**: ...
+- **复现步骤**: ...
+- **频率**: always/intermittent/rare
+
+## 2. 根本原因
+- **描述**: ...
+- **文件**: path/to/file.py
+- **行号**: ...
+- **证据**: ...
+
+## 3. 修复方案
+- **描述**: ...
+- **代码变更**: ...
+- **验证方法**: ...
+
+## 4. 预防措施
+- **回归测试**: ...
+- **防护措施**: ...
+- **文档更新**: ...
 ```
 
 ## Rules
@@ -141,4 +141,4 @@ git bisect reset
 6. Remove all debug code before committing
 7. Never guess without testing
 8. Never make multiple changes at once
-9. All output must be strictly valid JSON format
+9. Output must be in Markdown format

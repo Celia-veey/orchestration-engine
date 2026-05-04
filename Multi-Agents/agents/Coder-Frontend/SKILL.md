@@ -87,33 +87,37 @@ When the task involves creating **frontend UI** (components, pages, dashboards, 
 
 ## Output Format
 
-```json
-{
-  "type": "frontend_code",
-  "code_files": [
-    {
-      "file_path": "string",
-      "content": "string (complete file content)",
-      "language": "javascript|typescript|tsx",
-      "component_type": "page|component|hook|util"
-    }
-  ],
-  "test_cases": [
-    {
-      "test_file_path": "string",
-      "test_content": "string (complete test code)",
-      "test_type": "unit|integration|e2e"
-    }
-  ],
-  "deployment_notes": "string"
-}
+Output code in Markdown format with code blocks for each file:
+
+```markdown
+# 前端代码
+
+## 文件: src/components/UserList.tsx
+```typescript
+// Complete component code
+```
+
+## 文件: src/pages/Dashboard.tsx
+```typescript
+// Complete page code
+```
+
+## 测试用例
+
+## 文件: tests/UserList.test.tsx
+```typescript
+// Complete test code
+```
+
+## 部署说明
+...
 ```
 
 ## Rules
 
 1. Implement strictly based on technical plan and API design
 2. All UI must follow design system conventions
-3. Output must be strictly valid JSON format
+3. Output must be in Markdown format with code blocks for each file
 4. Code must be complete and directly runnable
 5. Test case coverage must be at least 80%
 6. Use `read_reference_doc` tool to consult specifications when needed

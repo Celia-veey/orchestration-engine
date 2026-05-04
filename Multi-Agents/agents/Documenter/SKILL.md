@@ -109,41 +109,34 @@ Generate documentation coverage summary:
 
 ## Output Format
 
-```json
-{
-  "type": "documentation",
-  "docstrings": [
-    {
-      "file_path": "string",
-      "documented_functions": [
-        {
-          "function_name": "string",
-          "docstring": "string (complete docstring)",
-          "style": "google|numpy|jsdoc"
-        }
-      ]
-    }
-  ],
-  "api_docs": {
-    "openapi_spec": "string (OpenAPI 3.1 YAML)",
-    "endpoint_docs": [
-      {
-        "method": "string",
-        "path": "string",
-        "description": "string",
-        "request_example": "string",
-        "response_example": "string"
-      }
-    ]
-  },
-  "user_guide_md": "string (complete Markdown user guide)",
-  "coverage_report": {
-    "total_functions": 0,
-    "documented_functions": 0,
-    "coverage_percentage": 0,
-    "missing_documentation": ["string"]
-  }
-}
+Output a complete Markdown documentation report:
+
+```markdown
+# 文档生成报告
+
+## 1. 代码文档
+
+### 文件: src/services/user_service.py
+
+#### function_name
+```
+Complete docstring
+```
+
+## 2. API 文档
+...
+
+## 3. 用户指南
+...
+
+## 4. 覆盖率报告
+
+| 指标 | 目标 | 实际 |
+|------|------|------|
+| 公共函数文档化 | 100% | XX% |
+| 类文档化 | 100% | XX% |
+| API 端点文档化 | 100% | XX% |
+| 代码示例测试 | 100% | XX% |
 ```
 
 ## Rules
@@ -154,4 +147,4 @@ Generate documentation coverage summary:
 4. Test all code examples in documentation
 5. Generate coverage report
 6. Use consistent docstring style based on language
-7. All output must be strictly valid JSON format
+7. Output must be in Markdown format

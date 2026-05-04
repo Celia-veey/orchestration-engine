@@ -26,7 +26,8 @@ class LLMClient:
         if provider == "openai":
             self.client = openai.OpenAI(
                 api_key=self.api_key,
-                base_url=self.base_url
+                base_url=self.base_url,
+                timeout=300.0  # 5分钟超时，支持长代码生成
             )
         else:
             raise ValueError(f"不支持的提供商: {provider}")
@@ -44,19 +45,25 @@ class LLMClient:
         :param response_format: 响应格式，可选"json"
         :return: 模型返回的内容
         """
-        extra_params = {}
-        if response_format == "json":
-            extra_params["response_format"] = {"type": "json_object"}
-        
-        response = self.client.chat.completions.create(
-            model=self.model,
-            messages=messages,
-            temperature=temperature,
-            max_tokens=max_tokens,
-            **extra_params
-        )
-        
-        return response.choices[0].message.content.strip()
+        try:
+            extra_params = {}
+            if response_format == "json":
+                extra_params["response_format"] = {"type": "json_object"}
+            
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=messages,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                **extra_params
+            )
+            
+            return response.choices[0].message.content.strip()
+        except Exception as e:
+            error_type = type(e).__name__
+            if "timeout" in str(e).lower() or "timed out" in str(e).lower():
+                raise TimeoutError(f"LLM API 请求超时（5分钟），请检查：\n1. API 服务是否正常\n2. max_tokens={max_tokens} 是否过大\n3. 网络连接是否稳定") from e
+            raise RuntimeError(f"LLM API 请求失败 ({error_type}): {str(e)}") from e
     
     def chat_completion_text(self,
                            messages: list[Dict[str, str]],

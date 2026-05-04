@@ -53,9 +53,9 @@ Invoke the `GitHub_PR_Delivery` skill from `.trae/skills` to handle all Git oper
 - Never ignore the PR template
 - Don't check boxes for tasks not done
 
-### Step 3: Output JSON Result
+### Step 3: Output Delivery Result
 
-After the PR is created, output the result in the following JSON structure.
+After the PR is created, output the result in Markdown format.
 
 ## Pre-Delivery Validation Checklist
 
@@ -274,29 +274,29 @@ Other notes, known issues, follow-up plans, etc.
 
 ## Output Format
 
-```json
-{
-  "type": "delivery_result",
-  "branch_operation": {
-    "branch_name": "Created branch name",
-    "base_branch": "Target merge branch",
-    "commit_messages": ["List of commit messages"]
-  },
-  "pr_info": {
-    "pr_title": "PR title",
-    "pr_description": "PR detailed description",
-    "pr_template_md": "# PR Template\n\n## 1. Change Overview\n{Feature description}\n\n## 2. Change Type\n- [ ] New feature\n- [ ] Bug fix\n- [ ] Performance optimization\n- [ ] Documentation update\n\n## 3. Test Status\n- Unit test coverage: {coverage}%\n- Tests passed: {passed}/{total}\n- Code review score: {score}/10\n\n## 4. Changed Files List\n{File inventory}\n\n## 5. Related Documents\n- Requirements: [template-report.md](link)\n- Technical plan: [plan.md](link)\n- Review report: [eval-template-report.md](link)\n\n## 6. Notes\n{Other notes}"
-  },
-  "execution_result": {
-    "status": "success/failed",
-    "pr_url": "PR URL (if created successfully)",
-    "error_message": "Error message (if failed)"
-  }
-}
+Output a complete Markdown delivery result report:
+
+```markdown
+# 交付结果
+
+## 分支操作
+- **分支名称**: ...
+- **基础分支**: ...
+- **提交信息**:
+  - feat: ...
+  - fix: ...
+
+## PR 信息
+- **标题**: ...
+- **描述**: ...
+
+## 执行结果
+- **状态**: success/failed
+- **PR URL**: ...
+- **错误信息**: ...（如有）
 ```
 
 ## Output Requirements
-1. Output must be strictly valid JSON format
+1. Output must be in Markdown format, ready to save as delivery report
 2. Branch and commit messages follow team conventions
 3. PR description complete with all necessary context
-4. `pr_template_md` is a complete Markdown PR template, ready to use

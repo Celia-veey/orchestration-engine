@@ -539,9 +539,9 @@ class PipelineEngine:
         code_files = coder_result.get("code_files", [])
         test_cases = coder_result.get("test_cases", [])
         
-        # 直接写入文件
+        # 直接写入文件到 output 目录
         if code_files:
-            write_results = write_files(code_files, str(self.codebase_dir))
+            write_results = write_files(code_files, str(self.output_dir))
             success_count = sum(1 for r in write_results if r.get("status") == "success")
             print(f"\n✅ 已写入 {success_count}/{len(code_files)} 个代码文件")
             for result in write_results:
@@ -551,13 +551,32 @@ class PipelineEngine:
                     print(f"  ❌ {result.get('message', '未知错误')}")
         
         if test_cases:
-            test_results = write_files(test_cases, str(self.codebase_dir))
+            test_results = write_files(test_cases, str(self.output_dir))
             success_count = sum(1 for r in test_results if r.get("status") == "success")
             print(f"\n✅ 已写入 {success_count}/{len(test_cases)} 个测试文件")
         
         print("\n📦 代码生成完成：")
         print(f"✅ 生成代码文件数: {len(code_files)}")
         print(f"✅ 生成测试用例数: {len(test_cases)}")
+        
+        # 完整性检查：对比 plan.md 中的文件变更列表
+        if self.context.file_change_list:
+            expected_files = [f.get('file_path') or f.get('path') for f in self.context.file_change_list if f.get('file_path') or f.get('path')]
+            generated_files = [cf.get('file_path') for cf in code_files]
+            
+            missing_files = []
+            for expected in expected_files:
+                # 检查是否有生成的文件路径包含预期路径
+                if not any(expected in gen or gen in expected for gen in generated_files):
+                    missing_files.append(expected)
+            
+            if missing_files:
+                print(f"\n⚠️  代码完整性检查发现 {len(missing_files)} 个缺失文件：")
+                for mf in missing_files:
+                    print(f"  ❌ 缺失: {mf}")
+                print(f"\n⚠️  请检查 Coder Agent 是否严格遵循了 plan.md 中的文件变更列表")
+            else:
+                print(f"\n✅ 代码完整性检查通过：所有 {len(expected_files)} 个预期文件都已生成")
         
         # 保存到上下文
         self.context.update(

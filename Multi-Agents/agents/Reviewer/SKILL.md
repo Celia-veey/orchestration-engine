@@ -98,9 +98,9 @@ Tone: Be constructive, professional, and friendly. Explain *why* a change is req
 ### Step 5: Cleanup (Remote PRs only)
 After the review, ask the user if they want to switch back to the default branch.
 
-### Step 6: Output JSON Report
+### Step 6: Output Review Report
 
-Apply the detailed review dimensions below and output results in the following JSON structure, **must be pure JSON format, no additional explanatory text**.
+Apply the detailed review dimensions below and output results in Markdown format.
 
 ## Review Dimensions
 
@@ -334,41 +334,64 @@ See [testing-strategy.md](references/testing-strategy.md) for testing standards.
 
 ## Output Format
 
-```json
-{
-  "type": "review_report",
-  "review_summary": {
-    "overall_status": "pass/reject/need_modify",
-    "total_problems": 0,
-    "critical_problems": 0,
-    "major_problems": 0,
-    "minor_problems": 0
-  },
-  "problem_list": [
-    {
-      "problem_id": 1,
-      "severity": "critical/major/minor/suggestion",
-      "problem_description": "Detailed problem description",
-      "file_path": "File path",
-      "line_range": "Line range",
-      "repair_suggestion": "Specific fix suggestion with code example"
-    }
-  ],
-  "code_quality_scores": {
-    "correctness": 0,
-    "code_style": 0,
-    "security": 0,
-    "performance": 0,
-    "maintainability": 0,
-    "overall_score": 0
-  },
-  "eval_template_report": "# Code Review Report\n\n## 1. Overview\n{Overall evaluation and conclusion}\n\n## 2. Code Quality Scores\n| Dimension | Score |\n|-----------|-------|\n| Correctness | {score} |\n| Code Style | {score} |\n| Security | {score} |\n| Performance | {score} |\n| Maintainability | {score} |\n| **Overall** | {score} |\n\n## 3. Problem Details\n### Critical Issues\n{List}\n\n### Major Issues\n{List}\n\n### Minor Issues / Suggestions\n{List}\n\n## 4. Improvement Suggestions\n{Overall improvement recommendations}"
-}
+Output a complete Markdown code review report:
+
+```markdown
+# 代码评审报告
+
+## 1. 概述
+{总体评价和结论}
+
+## 2. 评审摘要
+- **总体状态**: Pass/Reject/Need Modify
+- **问题总数**: ...
+- **严重问题**: ...
+- **主要问题**: ...
+- **次要问题**: ...
+
+## 3. 代码质量评分
+
+| 维度 | 评分 (1-10) |
+|------|-------------|
+| 正确性 | ... |
+| 代码风格 | ... |
+| 安全性 | ... |
+| 性能 | ... |
+| 可维护性 | ... |
+| **总体评分** | ... |
+
+## 4. 问题详情
+
+### 严重问题
+
+#### 问题 1: [问题标题]
+- **文件**: path/to/file.py
+- **行号**: 10-20
+- **描述**: ...
+- **修复建议**: ...
+
+### 主要问题
+
+#### 问题 2: [问题标题]
+- **文件**: path/to/file.py
+- **行号**: 30-40
+- **描述**: ...
+- **修复建议**: ...
+
+### 次要问题/建议
+
+#### 问题 3: [问题标题]
+- **文件**: path/to/file.py
+- **行号**: 50-60
+- **描述**: ...
+- **修复建议**: ...
+
+## 5. 改进建议
+{总体改进建议}
 ```
 
 ## Output Requirements
-1. Output must be strictly valid JSON format
+1. Output must be in Markdown format, ready to save as a review report
 2. Problem descriptions must be specific and accurately located
 3. Fix suggestions must be executable, preferably with code examples
 4. Scoring must be objective and fair, overall score below 7 must result in reject conclusion
-5. `eval_template_report` is a complete Markdown review report, ready to save
