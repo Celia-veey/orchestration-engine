@@ -1,5 +1,5 @@
 ---
-name: GitHub_PR_Delivery
+name: pr-creator
 description:
   Use this skill when asked to create a pull request (PR). It ensures all PRs
   follow the repository's established templates and standards.
@@ -14,19 +14,6 @@ repository's standards.
 
 Follow these steps to create a Pull Request:
 
-0.  **Task Branch Discovery**: Before creating or switching branches, check if a
-    relevant branch already exists for the current task.
-    - Extract keywords from the task description (e.g., "add user auth" →
-      `user-auth`).
-    - Search for existing branches:
-      ```bash
-      git branch -r | grep -i "<task-keyword>"
-      ```
-    - **Decision**:
-      - **If a relevant branch exists**: Ask the user if they want to checkout
-        and continue working on it.
-      - **If no relevant branch found**: Proceed to Step 1.
-
 1.  **Branch Management**: **CRITICAL:** Ensure you are NOT working on the
     `main` branch.
     - Run `git branch --show-current`.
@@ -35,8 +22,6 @@ Follow these steps to create a Pull Request:
       ```bash
       git checkout -b <new-branch-name>
       ```
-    - Branch naming convention: `<type>/<short-description>` (e.g.,
-      `feat/add-user-auth`, `fix/resolve-crash`).
 
 2.  **Commit Changes**: Verify that all intended changes are committed.
     - Run `git status` to check for unstaged or uncommitted changes.
@@ -48,8 +33,9 @@ Follow these steps to create a Pull Request:
       ```
 
 3.  **Locate Template**: Search for a pull request template in the repository.
-    - Check `pull_request_template.md`
-    - If multiple templates exist ,
+    - Check `.github/pull_request_template.md`
+    - Check `.github/PULL_REQUEST_TEMPLATE.md`
+    - If multiple templates exist (e.g., in `.github/PULL_REQUEST_TEMPLATE/`),
       ask the user which one to use or select the most appropriate one based on
       the context (e.g., `bug_fix.md` vs `feature.md`).
 
@@ -84,44 +70,20 @@ Follow these steps to create a Pull Request:
     git push -u origin HEAD
     ```
 
-8.  **PR Idempotency Check**: Before creating a PR, verify if one already exists
-    for the current branch.
-    - Check for existing open PRs using the MCP GitHub tool:
-      ```
-      mcp_GitHub_list_pull_requests(owner, repo, head=<current-branch>, state=open)
-      ```
-    - **Decision Matrix**:
-      - **Case A (No open PR found)**: Proceed to create a new PR (Step 9).
-      - **Case B (Open PR exists)**: DO NOT create a new PR. Instead:
-        1. Inform the user that a PR already exists with its URL.
-        2. **Update PR Description**: If the changes are substantial (new files,
-           significant logic changes), update the PR description to reflect the
-           latest state:
-           ```
-           mcp_GitHub_update_issue(owner, repo, issue_number, title, body)
-           ```
-        3. **Add Comment**: Notify reviewers that the PR has been updated:
-           ```
-           mcp_GitHub_add_issue_comment(owner, repo, issue_number, body)
-           ```
-        4. Skip Step 9.
-
-9.  **Create PR**: Use the MCP GitHub tool to create the PR.
-    ```
-    mcp_GitHub_create_pull_request(
-      owner,
-      repo,
-      title="type(scope): succinct description",
-      head=<current-branch>,
-      base=<target-branch>,
-      body=<pr_description_markdown>
-    )
+8.  **Create PR**: Use the `gh` CLI to create the PR. To avoid shell escaping
+    issues with multi-line Markdown, write the description to a temporary file
+    first.
+    ```bash
+    # 1. Write the drafted description to a temporary file
+    # 2. Create the PR using the --body-file flag
+    gh pr create --title "type(scope): succinct description" --body-file <temp_file_path>
+    # 3. Remove the temporary file
+    rm <temp_file_path>
     ```
     - **Title**: Ensure the title follows the
       [Conventional Commits](https://www.conventionalcommits.org/) format if the
       repository uses it (e.g., `feat(ui): add new button`,
       `fix(core): resolve crash`).
-    - **Body**: Use the drafted PR description from Step 5.
 
 ## Principles
 
