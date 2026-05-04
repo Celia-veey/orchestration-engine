@@ -96,51 +96,36 @@ Design indexes based on expected query patterns:
 
 ## Output Format
 
-```json
-{
-  "type": "database_design",
-  "tables": [
-    {
-      "table_name": "string",
-      "description": "string",
-      "columns": [
-        {
-          "name": "string",
-          "type": "string",
-          "constraints": ["PRIMARY KEY", "NOT NULL", "UNIQUE", "FOREIGN KEY"],
-          "default": "string (optional)"
-        }
-      ],
-      "indexes": [
-        {
-          "name": "string",
-          "columns": ["string"],
-          "unique": false
-        }
-      ],
-      "relationships": [
-        {
-          "type": "one-to-many|many-to-many|one-to-one",
-          "target_table": "string",
-          "foreign_key": "string"
-        }
-      ]
-    }
-  ],
-  "migration_strategy": {
-    "new_tables": ["string"],
-    "modified_tables": ["string"],
-    "migration_notes": "string"
-  },
-  "db_spec_md": "string (complete Markdown database specification)"
-}
+Output a complete Markdown database specification:
+
+```markdown
+# 数据库设计
+
+## 表结构
+
+### users
+| 列名 | 类型 | 约束 | 默认值 |
+|------|------|------|--------|
+| id | UUID | PRIMARY KEY | gen_random_uuid() |
+| email | VARCHAR(255) | NOT NULL, UNIQUE | - |
+
+### 索引
+- idx_users_email: email (UNIQUE)
+
+### 关系
+- users 1:N orders (user_id)
+
+## 迁移策略
+- **新增表**: users, orders
+- **修改表**: ...
+- **迁移说明**: ...
 ```
 
 ## Rules
 
 1. Design strictly based on input requirement document
 2. All tables must have primary keys and timestamps
-3. Output must be strictly valid JSON format
+3. Output must be in Markdown format, ready to save as database spec
 4. Define explicit relationships between tables
 5. Include indexing strategy for performance
 6. Index all foreign keys and frequently queried columns

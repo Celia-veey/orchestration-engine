@@ -1,4 +1,4 @@
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 from . import CoderBaseAgent
 from models import FileChange
 
@@ -9,7 +9,8 @@ class CoderMockAgent(CoderBaseAgent):
         self,
         tech_plan: str,
         codebase_context: Optional[Dict[str, Any]] = None,
-        fix_hint: Optional[str] = None
+        fix_hint: Optional[str] = None,
+        chat_history: Optional[List[Dict[str, str]]] = None
     ) -> Dict[str, Any]:
         return {
             "code_files": [

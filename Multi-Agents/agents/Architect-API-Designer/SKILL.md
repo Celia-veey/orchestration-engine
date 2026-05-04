@@ -219,65 +219,41 @@ security:
 
 ## Output Format
 
-```json
-{
-  "type": "api_design",
-  "api_endpoints": [
-    {
-      "method": "GET|POST|PUT|PATCH|DELETE",
-      "path": "/api/v1/...",
-      "description": "string",
-      "request_params": {
-        "path_params": [],
-        "query_params": [],
-        "body_params": []
-      },
-      "response_format": {
-        "success": {},
-        "error": {
-          "type": "https://api.example.com/errors/error-type",
-          "title": "string",
-          "status": 400
-        }
-      },
-      "authentication_required": true|false,
-      "pagination": {
-        "strategy": "cursor|offset|keyset",
-        "default_limit": 20,
-        "max_limit": 100
-      }
-    }
-  ],
-  "api_conventions": {
-    "versioning_strategy": "URL path versioning (/api/v1/)",
-    "pagination_strategy": "Cursor-based pagination",
-    "error_handling_strategy": "RFC 7807 Problem Details (application/problem+json)",
-    "naming_convention": "snake_case for fields, plural nouns for resources"
-  },
-  "error_catalog": [
-    {
-      "type": "https://api.example.com/errors/validation-error",
-      "title": "Validation Error",
-      "status": 422,
-      "description": "Request body validation failed"
-    },
-    {
-      "type": "https://api.example.com/errors/not-found",
-      "title": "Not Found",
-      "status": 404,
-      "description": "Resource does not exist"
-    }
-  ],
-  "openapi_spec_yaml": "string (complete OpenAPI 3.1 YAML specification)",
-  "api_spec_md": "string (complete Markdown API specification)"
-}
+Output a complete Markdown API specification:
+
+```markdown
+# API 设计
+
+## 1. API 端点
+
+### GET /api/v1/users
+- **描述**: 获取用户列表
+- **认证**: 需要
+- **请求参数**: page, limit
+- **响应**: 200 OK, {users: [], total: number}
+
+### POST /api/v1/users
+- **描述**: 创建用户
+- **认证**: 需要
+- **请求体**: {name, email, password}
+- **响应**: 201 Created, {id, name, email}
+
+## 2. API 约定
+- **版本策略**: URL path versioning (/api/v1/)
+- **分页策略**: Cursor-based pagination
+- **错误处理**: RFC 7807 Problem Details
+- **命名约定**: snake_case for fields, plural nouns for resources
+
+## 3. 错误目录
+- **422 Validation Error**: Request body validation failed
+- **404 Not Found**: Resource does not exist
 ```
 
 ## Rules
 
 1. Design strictly based on input requirement document
 2. All APIs must follow RESTful conventions
-3. Output must be strictly valid JSON format
+3. Output must be in Markdown format, ready to save as API spec
 4. Include authentication requirements for each endpoint
 5. Support pagination for all list endpoints (cursor-based preferred)
 6. All error responses must use RFC 7807 Problem Details format

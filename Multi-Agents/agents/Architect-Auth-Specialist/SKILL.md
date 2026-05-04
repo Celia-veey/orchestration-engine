@@ -69,57 +69,34 @@ Use the `read_reference_doc` tool to retrieve auth design specifications:
 
 ## Output Format
 
-```json
-{
-  "type": "auth_design",
-  "authentication": {
-    "strategy": "JWT + Refresh Token",
-    "token_expiry": {
-      "access_token": "15m",
-      "refresh_token": "7d"
-    },
-    "password_policy": {
-      "min_length": 8,
-      "require_uppercase": true,
-      "require_number": true,
-      "require_special": true
-    },
-    "registration_flow": ["string"],
-    "login_flow": ["string"],
-    "password_reset_flow": ["string"]
-  },
-  "authorization": {
-    "model": "RBAC",
-    "roles": [
-      {
-        "name": "string",
-        "description": "string",
-        "permissions": ["string"]
-      }
-    ],
-    "permission_matrix": {
-      "resource": {
-        "create": ["role1", "role2"],
-        "read": ["role1", "role2", "role3"],
-        "update": ["role1"],
-        "delete": ["role1"]
-      }
-    }
-  },
-  "security": {
-    "rate_limiting": "string",
-    "cors_policy": "string",
-    "audit_logging": "string"
-  },
-  "auth_spec_md": "string (complete Markdown auth specification)"
-}
+Output a complete Markdown authentication specification:
+
+```markdown
+# 认证与授权设计
+
+## 1. 认证
+- **策略**: JWT + Refresh Token
+- **Token 过期时间**:
+  - Access Token: 15m
+  - Refresh Token: 7d
+- **密码策略**: 最小长度 8，需要大写、数字、特殊字符
+
+## 2. 授权
+- **模型**: RBAC
+- **角色**: ...
+- **权限矩阵**: ...
+
+## 3. 安全
+- **速率限制**: ...
+- **CORS 策略**: ...
+- **审计日志**: ...
 ```
 
 ## Rules
 
 1. Design strictly based on input requirement document
 2. All auth endpoints must have rate limiting
-3. Output must be strictly valid JSON format
+3. Output must be in Markdown format, ready to save as auth spec
 4. Never store passwords in plaintext
 5. Use short-lived access tokens with refresh tokens
 6. Define clear permission matrix for all roles

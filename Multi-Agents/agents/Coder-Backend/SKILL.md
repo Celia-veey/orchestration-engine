@@ -78,33 +78,42 @@ Use constructor injection with interfaces. Services receive their dependencies, 
 
 ## Output Format
 
-```json
-{
-  "type": "backend_code",
-  "code_files": [
-    {
-      "file_path": "string",
-      "content": "string (complete file content)",
-      "language": "python|javascript|typescript",
-      "layer": "controller|service|repository"
-    }
-  ],
-  "test_cases": [
-    {
-      "test_file_path": "string",
-      "test_content": "string (complete test code)",
-      "test_type": "unit|integration"
-    }
-  ],
-  "deployment_notes": "string"
-}
+Output code in Markdown format with code blocks for each file:
+
+```markdown
+# 后端代码
+
+## 文件: src/controllers/user_controller.py
+```python
+# Complete controller code
+```
+
+## 文件: src/services/user_service.py
+```python
+# Complete service code
+```
+
+## 文件: src/repositories/user_repository.py
+```python
+# Complete repository code
+```
+
+## 测试用例
+
+## 文件: tests/test_user_service.py
+```python
+# Complete test code
+```
+
+## 部署说明
+...
 ```
 
 ## Rules
 
 1. Implement strictly based on technical plan and API design
 2. All code must follow three-layer architecture
-3. Output must be strictly valid JSON format
+3. Output must be in Markdown format with code blocks for each file
 4. Code must be complete and directly runnable
 5. Test case coverage must be at least 80%
 6. Use `read_reference_doc` tool to consult specifications when needed

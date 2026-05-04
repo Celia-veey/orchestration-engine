@@ -70,46 +70,48 @@ Use the `read_reference_doc` tool to retrieve database coding specifications:
 
 ## Output Format
 
-```json
-{
-  "type": "database_code",
-  "migrations": [
-    {
-      "migration_file_path": "string",
-      "migration_content": "string (complete migration code)",
-      "migration_type": "create_table|alter_table|add_index|add_constraint"
-    }
-  ],
-  "models": [
-    {
-      "model_file_path": "string",
-      "model_content": "string (complete model code)",
-      "table_name": "string"
-    }
-  ],
-  "repositories": [
-    {
-      "repository_file_path": "string",
-      "repository_content": "string (complete repository code)",
-      "model_name": "string"
-    }
-  ],
-  "test_cases": [
-    {
-      "test_file_path": "string",
-      "test_content": "string (complete test code)",
-      "test_type": "unit|integration"
-    }
-  ],
-  "deployment_notes": "string"
-}
+Output code in Markdown format with code blocks for each file:
+
+```markdown
+# 数据库代码
+
+## 迁移文件
+
+## 文件: migrations/001_create_users.py
+```python
+# Complete migration code
+```
+
+## 模型
+
+## 文件: src/models/user.py
+```python
+# Complete model code
+```
+
+## 仓库
+
+## 文件: src/repositories/user_repository.py
+```python
+# Complete repository code
+```
+
+## 测试用例
+
+## 文件: tests/test_user_repository.py
+```python
+# Complete test code
+```
+
+## 部署说明
+...
 ```
 
 ## Rules
 
 1. Implement strictly based on technical plan and database design
 2. All migrations must be reversible when possible
-3. Output must be strictly valid JSON format
+3. Output must be in Markdown format with code blocks for each file
 4. Code must be complete and directly runnable
 5. Test case coverage must be at least 80%
 6. Use `read_reference_doc` tool to consult specifications when needed

@@ -1,4 +1,4 @@
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 from . import DeliveryBaseAgent
 from models import FileChange
 
@@ -10,7 +10,8 @@ class DeliveryMockAgent(DeliveryBaseAgent):
         code_changes: List[FileChange],
         test_result: Dict[str, Any],
         review_score: float,
-        requirement: str
+        requirement: str,
+        chat_history: Optional[List[Dict[str, str]]] = None
     ) -> Dict[str, Any]:
         import uuid
         pipeline_id = str(uuid.uuid4())[:8]

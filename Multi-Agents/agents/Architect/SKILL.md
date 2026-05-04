@@ -88,7 +88,7 @@ Use the `read_reference_doc` tool to retrieve relevant specifications on demand:
 
 ### Step 4: Output Technical Solution
 
-Output results in the following JSON structure, **must be pure JSON format, no additional explanatory text**.
+Output results in Markdown format with the following structure.
 
 ## Architecture Design Principles
 
@@ -114,64 +114,71 @@ Controller (HTTP) → Service (Business Logic) → Repository (Data Access)
 
 ## Output Format
 
-```json
-{
-  "type": "tech_solution",
-  "architecture_analysis": {
-    "impact_scope": "string",
-    "existing_architecture_compatibility": "string",
-    "tech_stack_consistency": "string"
-  },
-  "architectural_decisions": {
-    "project_structure": "string",
-    "api_client_approach": "string",
-    "auth_strategy": "string",
-    "real_time_method": "string",
-    "error_handling": "string"
-  },
-  "nfr_targets": {
-    "performance": "API response time < 200ms p95",
-    "scalability": "Concurrent users: 1000",
-    "availability": "99.9% uptime",
-    "security": "JWT + RBAC",
-    "reliability": "RPO: 1hr, RTO: 4hr"
-  },
-  "architecture_diagram": "string (Mermaid diagram syntax)",
-  "adr_list": [
-    {
-      "adr_id": "ADR-001",
-      "title": "string",
-      "status": "Proposed|Accepted",
-      "context": "string",
-      "decision": "string",
-      "consequences": {
-        "positive": ["string"],
-        "negative": ["string"]
-      },
-      "alternatives": ["string"]
-    }
-  ],
-  "file_change_list": [
-    {
-      "file_path": "string",
-      "change_type": "new|modify|delete",
-      "description": "string"
-    }
-  ],
-  "api_design": [
-    {
-      "method": "string",
-      "path": "string",
-      "request_params": "string",
-      "response_format": "string"
-    }
-  ],
-  "database_design": {
-    "new_tables": ["string"],
-    "modified_tables": ["string"]
-  },
-  "plan_md": "string (complete Markdown technical plan)"
-}
+Output a complete Markdown technical plan document:
+
+```markdown
+# 技术方案
+
+## 1. 架构分析
+- **影响范围**: ...
+- **现有架构兼容性**: ...
+- **技术栈一致性**: ...
+
+## 2. 架构决策
+- **项目结构**: ...
+- **API/客户端方案**: ...
+- **认证策略**: ...
+- **实时通信方案**: ...
+- **错误处理方案**: ...
+
+## 3. 非功能性需求目标
+- **性能**: API 响应时间 < 200ms p95
+- **可扩展性**: 并发用户数: 1000
+- **可用性**: 99.9%  uptime
+- **安全性**: JWT + RBAC
+- **可靠性**: RPO: 1hr, RTO: 4hr
+
+## 4. 架构图
+
+\`\`\`mermaid
+graph TD
+  A[Client] --> B[API Gateway]
+  B --> C[Service]
+\`\`\`
+
+## 5. 架构决策记录 (ADR)
+
+### ADR-001: [决策标题]
+- **状态**: Proposed/Accepted
+- **上下文**: ...
+- **决策**: ...
+- **后果**:
+  - 正面: ...
+  - 负面: ...
+- **备选方案**: ...
+
+## 6. 文件变更列表
+
+| 文件路径 | 变更类型 | 描述 |
+|---------|---------|------|
+| src/api/user.py | new | 用户 API |
+| src/models.py | modify | 添加用户模型 |
+
+## 7. API 设计
+
+| 方法 | 路径 | 请求参数 | 响应格式 |
+|------|------|---------|---------|
+| GET | /api/users | page, limit | {users: [], total: number} |
+| POST | /api/users | name, email | {id, name, email} |
+
+## 8. 数据库设计
+
+### 新增表
+- users: id, name, email, created_at
+- orders: id, user_id, total, status
+
+### 修改表
+- ...
 ```
 
 ## Architecture Decision Records (ADR)
@@ -244,10 +251,9 @@ graph TD
 
 1. Design strictly based on input requirement document, do not exceed scope
 2. Analyze existing codebase architecture style, maintain tech stack consistency
-3. Output must be strictly valid JSON format, no additional explanatory text
+3. Output must be in Markdown format, ready to save as plan.md
 4. File change list must be accurate, including all files to modify
 5. API design must follow RESTful conventions with explicit parameters
-6. `plan_md` must be a complete Markdown technical plan document, ready to save as `plan.md`
-7. Project structure should use Feature-first organization by default
-8. All technology choices must include trade-off analysis
-9. Use `read_reference_doc` tool to consult specifications when needed
+6. Project structure should use Feature-first organization by default
+7. All technology choices must include trade-off analysis
+8. Use `read_reference_doc` tool to consult specifications when needed

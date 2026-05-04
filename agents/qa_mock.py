@@ -1,4 +1,4 @@
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 from . import QABaseAgent
 from models import FileChange, TestCase
 
@@ -8,7 +8,8 @@ class QAMockAgent(QABaseAgent):
     def run(
         self,
         code_changes: List[FileChange],
-        requirement_doc: str
+        requirement_doc: str,
+        chat_history: Optional[List[Dict[str, str]]] = None
     ) -> Dict[str, Any]:
         return {
             "test_cases": [
