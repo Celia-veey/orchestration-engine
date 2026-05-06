@@ -13,12 +13,12 @@ from data_extractor import extract_json_from_markdown, extract_list_from_markdow
 from file_tools import write_files
 
 # 导入Mock Agent实现
-from agents.pm_mock import PMMockAgent
-from agents.architect_mock import ArchitectMockAgent
-from agents.coder_mock import CoderMockAgent
-from agents.qa_mock import QAMockAgent
-from agents.reviewer_mock import ReviewerMockAgent
-from agents.delivery_mock import DeliveryMockAgent
+from agents.pm import PMMockAgent
+from agents.architect import ArchitectMockAgent
+from agents.coder import CoderMockAgent
+from agents.qa import QAMockAgent
+from agents.reviewer import ReviewerMockAgent
+from agents.delivery import DeliveryMockAgent
 
 # 导入真实Agent实现
 from agents.real import PMAgent, ArchitectAgent, CoderAgent, QAAgent, ReviewerAgent, DeliveryAgent
@@ -37,31 +37,33 @@ class SkillManager:
         self._build_skill_index()
         
     def _build_skill_index(self) -> None:
-        """扫描技能目录，构建轻量级技能元数据索引，只读取YAML头部"""
+        """扫描技能目录（含子目录），构建轻量级技能元数据索引，只读取YAML头部"""
         if not self.skills_dir.exists():
             print(f"⚠️ 技能目录不存在: {self.skills_dir.resolve()}")
             return
             
-        for skill_dir in self.skills_dir.iterdir():
-            if skill_dir.is_dir():
-                skill_file = skill_dir / "SKILL.md"
-                if skill_file.exists():
-                    try:
-                        # 只读取前4KB内容，足够提取YAML头部
-                        with open(skill_file, 'r', encoding='utf-8') as f:
-                            content_head = f.read(4096)
-                        
-                        # 提取YAML元数据
-                        yaml_match = re.match(r'^---\n(.*?)\n---\n', content_head, re.DOTALL)
-                        if yaml_match:
-                            skill_meta = yaml.safe_load(yaml_match.group(1))
-                            skill_name = skill_meta.get('name', skill_dir.name)
-                            self.skill_index[skill_name] = {
-                                'path': skill_file,
-                                'meta': skill_meta
-                            }
-                    except Exception as e:
-                        print(f"⚠️ 加载技能元数据失败 {skill_dir.name}: {str(e)}")
+        # 递归扫描所有包含 SKILL.md 的目录
+        for skill_file in self.skills_dir.rglob("SKILL.md"):
+            # 跳过 .agents 和 node_modules 等隐藏/第三方目录
+            if any(part.startswith('.') or part == 'node_modules' for part in skill_file.parts):
+                continue
+                
+            try:
+                # 只读取前4KB内容，足够提取YAML头部
+                with open(skill_file, 'r', encoding='utf-8') as f:
+                    content_head = f.read(4096)
+                
+                # 提取YAML元数据
+                yaml_match = re.match(r'^---\n(.*?)\n---\n', content_head, re.DOTALL)
+                if yaml_match:
+                    skill_meta = yaml.safe_load(yaml_match.group(1))
+                    skill_name = skill_meta.get('name', skill_file.parent.name)
+                    self.skill_index[skill_name] = {
+                        'path': skill_file,
+                        'meta': skill_meta
+                    }
+            except Exception as e:
+                print(f"⚠️ 加载技能元数据失败 {skill_file.parent.name}: {str(e)}")
         
         print(f"✅ 技能索引构建完成，共发现 {len(self.skill_index)} 个可用技能")
     

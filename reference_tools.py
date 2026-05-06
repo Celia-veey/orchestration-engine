@@ -5,8 +5,8 @@ import os
 import re
 from pathlib import Path
 
-REFERENCES_DIR = Path(__file__).parent / "Multi-Agents" / "agents" / "references"
-SKILLS_DIR = Path(__file__).parent / "Multi-Agents" / "skills"
+REFERENCES_DIR = Path(__file__).parent / "skills" / "references"
+SKILLS_DIR = Path(__file__).parent / "skills" / "tools"
 MAX_DOC_LENGTH = 2000  # 截断文档长度，避免消耗过多 token
 
 def read_reference_doc(topic: str, section: str = None) -> str:
@@ -37,12 +37,12 @@ def read_reference_doc(topic: str, section: str = None) -> str:
     # Skill 文档（有 YAML front matter）
     skill_map = {
         # 代码审查与交付
-        "code-reviewer": "Multi-Agents/skills/Code_Reviewer/SKILL.md",
-        "github-pr-delivery": "Multi-Agents/skills/GitHub_PR_Delivery/SKILL.md",
+        "code-reviewer": "skills/tools/code-reviewer/SKILL.md",
+        "github-pr-delivery": "skills/tools/pr-delivery/SKILL.md",
         # 前端设计
-        "frontend-design": "Multi-Agents/skills/frontend-design/SKILL.md",
+        "frontend-design": "skills/tools/frontend-design/SKILL.md",
         # 架构改进
-        "improve-codebase-architecture": "Multi-Agents/skills/improve-codebase-architecture/SKILL.md",
+        "improve-codebase-architecture": "skills/tools/improve-architecture/SKILL.md",
     }
     
     all_topics = list(ref_map.keys()) + list(skill_map.keys())
